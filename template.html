@@ -177,6 +177,8 @@ const hhmm = d => `${two(d.getHours())}:${two(d.getMinutes())}`
 const span = ago => `${hhmm(new Date(D.updated - (ago + 1) * 3600e3))}–${hhmm(new Date(D.updated - ago * 3600e3))}`
 // 放在網頁內容裡的時段，不讓它在「–」處斷行
 const spanH = ago => `<span class="nw">${span(ago)}</span>`
+// 月/日 時:分，例：11/22 19:00
+const md = d => `${d.getMonth() + 1}/${d.getDate()} ${hhmm(d)}`
 const day = d => `${d.getFullYear()}/${two(d.getMonth() + 1)}/${two(d.getDate())}（${'日一二三四五六'[d.getDay()]}）`
 let cat = '所有'
 const vol = it => (it.chaos?.vol24 ?? 0) + (it.divine?.vol24 ?? 0)
@@ -327,7 +329,7 @@ function scope() {
 function render() {
   const items = scope(), shown = items.filter(it => inMode(it, mode))
   const html = cat === '熱門'
-    ? section('熱門（24 小時成交總值前 30）', shown)
+    ? section(`熱門：${md(new Date(D.updated - 24 * 3600e3))}–${md(new Date(D.updated))} 這 24 小時成交總值前 30 名（每小時隨新資料重新排名）`, shown)
     : D.cats.filter(c => cat === '所有' || c === cat).map(c => tab(c, shown.filter(i => i.cat === c))).join('')
   $('list').innerHTML = html || '<p class="empty">找不到符合的物品</p>'
   segPaint(items)
