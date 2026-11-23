@@ -94,7 +94,11 @@ h2 span { color: var(--muted); font-weight: 400; font-size: 13px; }
 h3 { font-size: 15px; font-weight: 600; color: var(--text); margin: 18px 0 8px; display: flex; align-items: center; gap: 8px; letter-spacing: .02em; }
 h3::before { content: ""; width: 4px; height: 16px; border-radius: 2px; background: var(--accent); flex: none; }
 h3 small { font-size: 12px; font-weight: 400; color: var(--muted); }
-h3::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
+h3::after { content: ""; flex: 1; border-top: 1px solid var(--line); order: 1; }
+.sort { order: 2; margin-left: auto; font: inherit; font-size: 13px; font-weight: 400; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; cursor: pointer; letter-spacing: 0; }
+.sort:hover, .sort:focus { border-color: var(--accent); outline: none; }
+h2 .sort { align-self: center; }
+@media (max-width: 600px) { .sort { font-size: 16px; padding: 2px 4px; } }
 :root { --cw: 200px; --gap: 8px; }
 .grps { display: flex; flex-wrap: wrap; column-gap: var(--gap); }
 .grp { flex: none; min-width: 0; width: calc(var(--k, 1) * (var(--cw) + var(--gap)) - var(--gap)); }
@@ -308,17 +312,40 @@ const card = it => it.noTrade ? noTradeCard(it) : `<details class="card${soldOut
       <summary>${img(it, '')}<div class="nm" title="${esc(it.name)}">${esc(it.name)}${soldOut(it) ? '<span class="tag">售完</span>' : ''}</div><div class="px">${px(it.chaos, 'chaos')}${px(it.divine, 'divine')}</div></summary>
       <div class="more"><div>${esc(it.en ?? '')}</div>${detail(it.chaos, 'chaos', it)}${detail(it.divine, 'divine', it)}</div></details>`
 const grid = rows => `<div class="grid">${rows.map(card).join('')}</div>`
-const section = (title, rows) => rows.length ? `<section><h2>${esc(title)}<span>${rows.length} 種</span></h2>${grid(rows)}</section>` : ''
-// 有遊戲版面的分頁：照遊戲的小分組與順序；沒在版面裡的物品放最後（照價格）
+// 排序：每個小分類各自選（key = 分頁|小分類），記住選擇。沒有該種價格的物品永遠排最後，其餘相同時保持原本順序
+const SORTS = [['game', '遊戲順序'], ['c-desc', '混沌石 高→低'], ['c-asc', '混沌石 低→高'], ['d-desc', '神聖石 高→低'], ['d-asc', '神聖石 低→高']]
+let sorts = {}
+try { sorts = JSON.parse(localStorage.getItem('sorts') || '{}') } catch {}
+const sortCtl = (k, first = '遊戲順序') => `<select class="sort" data-sort="${esc(k)}" aria-label="排序方式">${SORTS.map(([v, l], i) =>
+  `<option value="${v}"${(sorts[k] || 'game') === v ? ' selected' : ''}>${i ? l : first}</option>`).join('')}</select>`
+function applySort(rows, k) {
+  const s = sorts[k] || 'game'
+  if (s === 'game') return rows
+  const [c, dir] = s.split('-'), p = it => (c === 'c' ? it.chaos : it.divine)?.price
+  return [...rows].sort((a, b) => {
+    const x = p(a), y = p(b)
+    if (x == null || y == null) return (x == null) - (y == null)
+    return dir === 'desc' ? y - x : x - y
+  })
+}
+$('list').addEventListener('change', e => {
+  const s = e.target.closest('select.sort'); if (!s) return
+  sorts[s.dataset.sort] = s.value; render()
+  try { localStorage.setItem('sorts', JSON.stringify(sorts)) } catch {}
+})
+const section = (title, rows, k) => rows.length ? `<section><h2>${esc(title)}<span>${rows.length} 種</span>${k ? sortCtl(k, '排名順序') : ''}</h2>${grid(applySort(rows, k))}</section>` : ''
+// 有遊戲版面的分頁：照遊戲的小分組與順序；沒在版面裡的物品放最後（照價格）。每個小分類標題旁有排序選單
 function tab(c, rows) {
   if (!rows.length) return ''
   const gs = D.groups[c]
-  if (!gs) return section(c, rows.sort((a, b) => key(b) - key(a)))
+  if (!gs) return section(c, rows.sort((a, b) => key(b) - key(a)), c)
+  const single = gs.length === 1 && rows.every(i => i.group === gs[0]) // 只有一個小分類：排序選單放在頁標題旁
   const parts = [...gs, null].map(g => {
-    const r = rows.filter(i => (i.group ?? null) === g).sort((a, b) => g ? a.ord - b.ord : key(b) - key(a))
-    return r.length ? `<div class="grp" style="--n:${r.length}">${g === c && gs.length === 1 ? '' : `<h3>${esc(g ?? '其他')}<small>${r.length}</small></h3>`}${grid(r)}</div>` : ''
+    const k = c + '|' + (g ?? '其他')
+    const r = applySort(rows.filter(i => (i.group ?? null) === g).sort((a, b) => g ? a.ord - b.ord : key(b) - key(a)), k)
+    return r.length ? `<div class="grp" style="--n:${r.length}">${single ? '' : `<h3>${esc(g ?? '其他')}<small>${r.length}</small>${sortCtl(k)}</h3>`}${grid(r)}</div>` : ''
   }).join('')
-  return `<section><h2>${esc(c)}<span>${rows.length} 種</span></h2><div class="grps">${parts}</div></section>`
+  return `<section><h2>${esc(c)}<span>${rows.length} 種</span>${single ? sortCtl(c + '|' + gs[0]) : ''}</h2><div class="grps">${parts}</div></section>`
 }
 // 目前分類＋搜尋字範圍內的物品（顯示範圍按鈕的數字也用它算）
 // 熱門的計算範圍：近 1 小時（預設，最貼近目前市場）／近 24 小時（主流、較穩定）；記住選擇
@@ -343,7 +370,7 @@ function render() {
   const html = cat === '熱門'
     ? hotSeg() + section(hotRange === 'h1'
       ? `熱門：${md(new Date(D.updated - 3600e3))}–${hhmm(new Date(D.updated))} 這 1 小時成交總值前 30 名（每小時更新）`
-      : `熱門：${md(new Date(D.updated - 24 * 3600e3))}–${md(new Date(D.updated))} 這 24 小時成交總值前 30 名（每小時隨新資料重新排名）`, shown)
+      : `熱門：${md(new Date(D.updated - 24 * 3600e3))}–${md(new Date(D.updated))} 這 24 小時成交總值前 30 名（每小時隨新資料重新排名）`, shown, '熱門|' + hotRange)
     : D.cats.filter(c => cat === '所有' || c === cat).map(c => tab(c, shown.filter(i => i.cat === c))).join('')
   $('list').innerHTML = html || '<p class="empty">找不到符合的物品</p>'
   segPaint(items)
