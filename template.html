@@ -23,8 +23,9 @@
 }
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #f6f4ef; --panel: #fffdf8; --line: #e4dfd3; --text: #2a2620; --muted: #8a8172;
-  --accent: #a8641c; --accent-soft: #f3e4cf; --good: #3f7d4e; --stale: #b0a796;
+  /* 低亮度暖灰，避免大面積近白色造成眼睛疲勞；文字對比皆 ≥ 4.5:1 */
+  --bg: #e7e2d8; --panel: #efebe3; --line: #d3cbbc; --text: #2e2a24; --muted: #6b6255;
+  --accent: #8c5017; --accent-soft: #e2d3bd; --good: #3f7a4b; --stale: #9a907f;
 }
 /* 主題開關：圖示框和圓鈕同樣大小、同樣位置（左 3px／右 3px，24×24），所以圖示一定在圓鈕正中心 */
 .theme { position: relative; flex: none; width: 58px; height: 32px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); cursor: pointer; padding: 0; }
@@ -37,7 +38,9 @@
 .theme .ic svg { width: 14px; height: 14px; }
 .theme .sun { left: 3px; } .theme .moon { right: 3px; }
 /* 圓鈕所在那一側＝目前模式，圖示改深色顯示在圓鈕上 */
-:root:not([data-theme="light"]) .theme .moon, :root[data-theme="light"] .theme .sun { color: #1a1408; }
+:root:not([data-theme="light"]) .theme .moon { color: #1a1408; }
+:root[data-theme="light"] .theme .sun { color: #fff; }
+:root[data-theme="light"] .chip[aria-pressed="true"], :root[data-theme="light"] .seg button[aria-pressed="true"], :root[data-theme="light"] .toast, :root[data-theme="light"] .clear:hover { color: #fff; }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif; }
 .wrap { max-width: 1240px; margin: 0 auto; padding: 28px 16px 64px; }
