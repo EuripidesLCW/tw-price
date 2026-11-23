@@ -1,0 +1,8 @@
+# 產生物與快取（雲端每次重新產生）
+cache/
+data.js
+data.js.tmp
+index.html
+# 只在這台電腦用的啟動檔
+update.vbs
+台服通貨價格.cmd

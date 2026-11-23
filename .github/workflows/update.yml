@@ -1,0 +1,51 @@
+# 每 20 分鐘抓台服通貨交換的官方每小時資料，產生頁面並發布到 GitHub Pages
+# （官方整點約 20 分後才發布上一小時；GitHub 排程可能延遲幾分鐘）
+name: update-prices
+
+on:
+  schedule:
+    - cron: '*/20 * * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # 過去的小時資料不會變，快取起來每次只需抓新的那一兩小時
+      - uses: actions/cache@v4
+        with:
+          path: cache
+          key: tw-cache-${{ github.run_id }}
+          restore-keys: tw-cache-
+      - run: node price.mjs --no-open
+      - run: mkdir _site && cp index.html data.js _site/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4
+      # 公開 repo 60 天沒有活動，GitHub 會停用排程；每次執行時重新啟用一次
+      - name: keep schedule enabled
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/update.yml/enable" || true

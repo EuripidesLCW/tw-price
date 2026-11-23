@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>台服通貨價格</title>
+<style>
+:root {
+  --bg: #f6f4ef; --panel: #fffdf8; --line: #e4dfd3; --text: #2a2620; --muted: #8a8172;
+  --accent: #a8641c; --accent-soft: #f3e4cf; --good: #3f7d4e; --stale: #b0a796;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15130f; --panel: #1d1a15; --line: #2e2a22; --text: #ece5d6; --muted: #8f8674;
+    --accent: #e0a458; --accent-soft: #3a2d1b; --good: #7fbf8c; --stale: #5d564a;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 28px 16px 64px; }
+header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 24px; margin-bottom: 20px; }
+h1 { margin: 0; font-size: 26px; letter-spacing: .04em; }
+h1 small { font-size: 15px; color: var(--muted); font-weight: 400; margin-left: 8px; letter-spacing: 0; }
+.rate { display: flex; align-items: center; gap: 6px; font-size: 18px; font-variant-numeric: tabular-nums; }
+.rate b { color: var(--accent); }
+.meta { width: 100%; color: var(--muted); font-size: 13px; }
+.stamp { width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 10px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; font-size: 14px; }
+.stamp b { font-size: 16px; color: var(--accent); font-variant-numeric: tabular-nums; }
+.stamp .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); flex: none; }
+.stamp.old .dot { background: #d9534f; }
+.stamp.old b { color: #e07a76; }
+.stamp span { color: var(--muted); font-size: 13px; }
+.toast { position: fixed; right: 16px; bottom: 16px; z-index: 9; background: var(--accent); color: #1a1408; padding: 8px 14px; border-radius: 8px; font-weight: 600; opacity: 0; transform: translateY(8px); transition: .3s; pointer-events: none; }
+.toast.show { opacity: 1; transform: none; }
+.bar { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 10px 0; display: flex; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid var(--line); }
+.bar input { flex: 1 1 220px; min-width: 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); font: inherit; }
+.bar input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; width: 100%; }
+.chip { border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 8px; height: 38px; padding: 0 10px 0 6px; font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px; text-align: left; white-space: nowrap; overflow: hidden; }
+.chip .ic { width: 50px; flex: none; display: flex; justify-content: center; gap: 2px; }
+.chip img { width: 24px; height: 24px; object-fit: contain; }
+.chip:hover { border-color: var(--accent); background: var(--accent-soft); }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #1a1408; font-weight: 700; }
+@media (max-width: 600px) { .bar { position: static; } .chips { grid-template-columns: repeat(3, 1fr); } .chip { font-size: 13px; height: 34px; padding: 0 6px 0 2px; gap: 3px; } .chip .ic { width: 24px; } .chip img { width: 20px; height: 20px; } .chip img + img { display: none; } }
+section { margin-top: 22px; }
+h2 { font-size: 15px; margin: 0 0 8px; color: var(--accent); font-weight: 600; display: flex; gap: 8px; align-items: baseline; }
+h2 span { color: var(--muted); font-weight: 400; font-size: 13px; }
+h3 { font-size: 15px; font-weight: 600; color: var(--text); margin: 18px 0 8px; display: flex; align-items: center; gap: 8px; letter-spacing: .02em; }
+h3::before { content: ""; width: 4px; height: 16px; border-radius: 2px; background: var(--accent); flex: none; }
+h3 small { font-size: 12px; font-weight: 400; color: var(--muted); }
+h3::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
+:root { --cols: 5; --cw: 200px; --gap: 8px; }
+.grps { display: flex; flex-wrap: wrap; column-gap: var(--gap); }
+.grp { flex: none; min-width: 0; width: calc(var(--k, 1) * (var(--cw) + var(--gap)) - var(--gap)); }
+.grp .grid { grid-template-columns: repeat(var(--k, 1), var(--cw)); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, var(--cw)); gap: var(--gap); align-items: start; }
+.card { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; font-variant-numeric: tabular-nums; }
+.card[open] { border-color: var(--accent); z-index: 3; border-radius: 10px 10px 0 0; }
+.card summary { list-style: none; cursor: pointer; padding: 8px 10px; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 2px 8px; align-items: center; }
+.card summary::-webkit-details-marker { display: none; }
+.card summary:hover { background: var(--accent-soft); border-radius: 10px; }
+.card summary > img { width: 34px; height: 34px; object-fit: contain; grid-row: span 2; }
+.card .nm { font-size: 14px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .px { display: flex; flex-wrap: wrap; gap: 0 12px; font-size: 15px; font-weight: 600; }
+.card .px span { display: inline-flex; align-items: center; gap: 3px; }
+.card .px .na { color: var(--stale); font-weight: 400; }
+.card .px .stale { color: var(--stale); }
+.card .px .out { color: var(--stale); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--stale) 70%, transparent); }
+.card.soldout { opacity: .62; border-style: dashed; }
+.card.soldout:hover, .card.soldout[open] { opacity: 1; }
+.tag { font-size: 11px; line-height: 1; padding: 2px 5px; border-radius: 4px; border: 1px solid var(--stale); color: var(--muted); margin-left: 6px; vertical-align: 2px; font-weight: 400; }
+.more .warn { color: var(--accent); }
+.card .more { position: absolute; left: -1px; right: -1px; top: 100%; background: var(--panel); border: 1px solid var(--accent); border-top: 1px dashed var(--line); border-radius: 0 0 10px 10px; box-shadow: 0 10px 24px rgb(0 0 0 / .35); padding: 6px 10px 10px; font-size: 12px; color: var(--muted); line-height: 1.6; }
+.card .more b { color: var(--text); font-weight: 500; }
+.card .more div + div { margin-top: 4px; }
+.ico { width: 18px; height: 18px; }
+.empty { color: var(--muted); padding: 40px 0; text-align: center; }
+@media (max-width: 600px) { .card .px { gap: 0 8px; font-size: 14px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>台服通貨價格<small id="league"></small></h1>
+    <div class="rate" id="rate"></div>
+    <div class="stamp" id="stamp"></div>
+    <div class="meta" id="meta"></div>
+  </header>
+  <div class="bar">
+    <input id="q" type="search" placeholder="搜尋物品名稱（中文或英文）" autocomplete="off">
+    <div class="chips" id="chips"></div>
+  </div>
+  <main id="list"></main>
+</div>
+<div class="toast" id="toast"></div>
+<script src="data.js"></script>
+<script>
+let D = window.TW_DATA
+const $ = id => document.getElementById(id)
+let chaos, divine
+const img = (it, cls = 'ico') => it?.icon ? `<img class="${cls}" src="${it.icon}" alt="" loading="lazy">` : ''
+const fmt = n => n >= 100 ? Math.round(n).toLocaleString() : n >= 10 ? n.toFixed(1) : n >= 1 ? n.toFixed(2) : n.toPrecision(2)
+const esc = s => String(s).replace(/[&<>"]/g, c => `&#${c.charCodeAt(0)};`)
+const two = n => String(n).padStart(2, '0')
+const hhmm = d => `${two(d.getHours())}:${two(d.getMinutes())}`
+const day = d => `${d.getFullYear()}/${two(d.getMonth() + 1)}/${two(d.getDate())}（${'日一二三四五六'[d.getDay()]}）`
+let cat = '所有'
+const vol = it => (it.chaos?.vol24 ?? 0) + (it.divine?.vol24 ?? 0)
+// 分類圖示：price.mjs 指定的代表圖，沒指定就用該分類成交量最大的物品；「所有」「熱門」不放圖
+const catIcon = c => c === '所有' || c === '熱門' ? [] : D.catIcons[c] ?? [D.items.filter(i => i.cat === c && i.icon).sort((a, b) => vol(b) - vol(a))[0]?.icon].filter(Boolean)
+
+// 資料時間：D.updated 是該小時的結束時間
+function stamp() {
+  const end = new Date(D.updated), start = new Date(D.updated - 3600e3), age = (Date.now() - D.updated) / 60e3
+  const old = age > 150
+  $('stamp').className = 'stamp' + (old ? ' old' : '')
+  $('stamp').innerHTML = `<i class="dot"></i>資料時間 <b>${day(start)} ${hhmm(start)}–${hhmm(end)}</b>`
+    + `<span>${old ? '⚠ 已超過 2 小時沒有新資料，請確認自動更新排程' : `約 ${Math.round(age)} 分鐘前的成交`}`
+    + ` · 官方每小時發布，整點約 20 分後可取得 · 本頁每 2 分鐘自動檢查${D.generated ? ` · 抓取於 ${hhmm(new Date(D.generated))}` : ''}</span>`
+}
+function paint() {
+  chaos = D.items.find(i => i.en === 'Chaos Orb'); divine = D.items.find(i => i.en === 'Divine Orb')
+  $('league').textContent = D.league
+  $('rate').innerHTML = `${img(divine)} 1 = <b>${fmt(D.divinePrice)}</b> ${img(chaos)} <small style="color:var(--muted);font-size:13px">（成交 ${fmt(D.divineRange[0])}–${fmt(D.divineRange[1])}）</small>`
+  $('meta').textContent = `遊戲內通貨交換的實際成交價：混沌石價、神聖石價各自取自該交易對最近一次有成交的小時（不互相換算），列出 ${D.hours} 小時內有成交的物品，最新一小時沒人在賣的標「售完」`
+  const chips = ['所有', '熱門', ...D.cats]
+  if (!chips.includes(cat)) cat = '所有'
+  $('chips').innerHTML = chips.map(c => `<button class="chip" data-cat="${esc(c)}" aria-pressed="${c === cat}"><span class="ic">${catIcon(c).map(src => `<img src="${src}" alt="">`).join('')}</span>${esc(c)}</button>`).join('')
+  stamp()
+}
+$('chips').onclick = e => { const t = e.target.closest('.chip'); if (t) { cat = t.dataset.cat; for (const b of $('chips').children) b.setAttribute('aria-pressed', b === t); render() } }
+// 自動更新：每 2 分鐘重新載入 data.js（排程每 20 分鐘在背景重抓官方資料），有新的小時就換上
+function poll() {
+  const s = document.createElement('script')
+  s.src = 'data.js?t=' + Date.now()
+  s.onload = () => {
+    s.remove()
+    if (window.TW_DATA && window.TW_DATA.updated !== D.updated) {
+      const y = scrollY
+      D = window.TW_DATA; paint(); render(); scrollTo(0, y)
+      $('toast').textContent = `已更新到 ${hhmm(new Date(D.updated - 3600e3))}–${hhmm(new Date(D.updated))} 的資料`
+      $('toast').classList.add('show'); setTimeout(() => $('toast').classList.remove('show'), 4000)
+    } else stamp()
+  }
+  s.onerror = () => s.remove()
+  document.head.append(s)
+}
+setInterval(poll, 120e3)
+document.addEventListener('visibilitychange', () => { if (!document.hidden) poll() })
+$('q').oninput = render
+document.addEventListener('toggle', e => { if (e.target.open) for (const d of document.querySelectorAll('details.card[open]')) if (d !== e.target) d.open = false }, true)
+document.addEventListener('click', e => { if (!e.target.closest('details.card')) for (const d of document.querySelectorAll('details.card[open]')) d.open = false })
+
+const unit = { chaos: ['混沌石', chaos], divine: ['神聖石', divine] }
+const range = ([a, b]) => a === b ? fmt(a) : `${fmt(a)}–${fmt(b)}`
+const num = ([a, b]) => a === b ? a.toLocaleString() : `${a.toLocaleString()}–${b.toLocaleString()}`
+// 卡片上只放價格；比例、成交量、在售量收在展開區
+const px = (q, k) => q ? `<span class="${q.soldOut ? 'out' : q.ago ? 'stale' : ''}" title="${unit[k][0]}${q.soldOut ? '（目前售完）' : ''}">${img(unit[k][1])}${fmt(q.price)}</span>` : `<span class="na" title="無${unit[k][0]}成交">${img(unit[k][1])}—</span>`
+// 不到 1 個通貨的物品倒過來寫成「1 通貨買幾個」，不用自己換算
+const detail = (q, k, it) => {
+  const [u] = unit[k]
+  if (!q) return it === unit[k][1] ? "" : `<div><b>${u}</b>：24 小時內沒有成交</div>`
+  const cheap = q.price < 1
+  const price = cheap
+    ? `平均 1 ${u} 買 ${fmt(1 / q.price)} 個<br>成交範圍：1 ${u} 買 ${range([1 / q.range[1], 1 / q.range[0]])} 個`
+    : `平均 1 個 = ${fmt(q.price)} ${u}<br>成交範圍：1 個 = ${range(q.range)} ${u}`
+  return `<div><b>${u}</b><br>${price}<br>成交 ${q.vol[0].toLocaleString()} 個 · ${q.soldOut ? '<span class="warn">目前售完（最新一小時沒人在賣）</span>' : `在售 ${num(q.stock)}`}${q.ago ? ` · 最近成交約 ${q.ago} 小時前` : ' · 最近一小時有成交'}</div>`
+}
+const key = it => it.chaos?.price ?? it.divine.price * D.divinePrice // 只用來排序
+const soldOut = it => [it.chaos, it.divine].filter(Boolean).every(q => q.soldOut)
+const card = it => `<details class="card${soldOut(it) ? ' soldout' : ''}">
+      <summary>${img(it, '')}<div class="nm" title="${esc(it.name)}">${esc(it.name)}${soldOut(it) ? '<span class="tag">售完</span>' : ''}</div><div class="px">${px(it.chaos, 'chaos')}${px(it.divine, 'divine')}</div></summary>
+      <div class="more"><div>${esc(it.en ?? '')}</div>${detail(it.chaos, 'chaos', it)}${detail(it.divine, 'divine', it)}</div></details>`
+const grid = rows => `<div class="grid">${rows.map(card).join('')}</div>`
+const section = (title, rows) => rows.length ? `<section><h2>${esc(title)}<span>${rows.length} 種</span></h2>${grid(rows)}</section>` : ''
+// 有遊戲版面的分頁：照遊戲的小分組與順序；沒在版面裡的物品放最後（照價格）
+function tab(c, rows) {
+  if (!rows.length) return ''
+  const gs = D.groups[c]
+  if (!gs) return section(c, rows.sort((a, b) => key(b) - key(a)))
+  const parts = [...gs, null].map(g => {
+    const r = rows.filter(i => (i.group ?? null) === g).sort((a, b) => g ? a.ord - b.ord : key(b) - key(a))
+    return r.length ? `<div class="grp" style="--n:${r.length}">${g === c && gs.length === 1 ? '' : `<h3>${esc(g ?? '其他')}<small>${r.length}</small></h3>`}${grid(r)}</div>` : ''
+  }).join('')
+  return `<section><h2>${esc(c)}<span>${rows.length} 種</span></h2><div class="grps">${parts}</div></section>`
+}
+function render() {
+  const q = $('q').value.trim().toLowerCase()
+  const hit = it => !q || it.name.toLowerCase().includes(q) || it.en?.toLowerCase().includes(q)
+  const byId = new Map(D.items.map(i => [i.id, i]))
+  const html = cat === '熱門'
+    ? section('熱門（24 小時成交總值前 30）', D.hot.map(id => byId.get(id)).filter(hit))
+    : D.cats.filter(c => cat === '所有' || c === cat).map(c => tab(c, D.items.filter(i => i.cat === c && hit(i)))).join('')
+  $('list').innerHTML = html || '<p class="empty">找不到符合的物品</p>'
+  fit()
+}
+// 依清單寬度算出欄數與欄寬（卡片最小 200px，手機 150px），所有分組共用 → 上下對齊
+function fit() {
+  const w = $('list').clientWidth, gap = 8, min = innerWidth <= 600 ? 150 : 200
+  const cols = Math.max(1, Math.floor((w + gap) / (min + gap)))
+  document.documentElement.style.setProperty('--cols', cols)
+  document.documentElement.style.setProperty('--cw', Math.floor((w - gap * (cols - 1)) / cols * 100) / 100 + 'px')
+  for (const g of document.querySelectorAll('.grp')) g.style.setProperty('--k', Math.min(+g.style.getPropertyValue('--n'), cols)) // 每組佔幾欄
+}
+paint()
+new ResizeObserver(fit).observe($('list')) // 視窗縮放、捲軸出現或消失都會重算
+render()
+</script>
+</body>
+</html>
