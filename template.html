@@ -181,8 +181,8 @@ function poll() {
 setInterval(poll, 120e3)
 document.addEventListener('visibilitychange', () => { if (!document.hidden) poll() })
 $('q').oninput = render
-// 顯示範圍：全部（照遊戲完整列出）／有成交價（24h 內有成交）／現在買得到（有成交價且最新一小時有人在賣）；記住選擇
-const MODES = { all: '全部', traded: '有成交價', buyable: '現在買得到' }
+// 顯示範圍：全部（照遊戲完整列出）／有成交價（24h 內有成交）／近一小時在售（有成交價，且資料時間那一小時有人在賣；不保證現在仍有貨）；記住選擇
+const MODES = { all: '全部', traded: '有成交價', buyable: '近一小時在售' }
 const buyable = it => !it.noTrade && [it.chaos, it.divine].some(q => q && !q.soldOut)
 const inMode = (it, m) => m === 'all' || (m === 'traded' ? !it.noTrade : buyable(it))
 let mode = 'all'
@@ -204,7 +204,7 @@ const unit = { get chaos() { return ['混沌石', chaos] }, get divine() { retur
 const range = ([a, b]) => a === b ? fmt(a) : `${fmt(a)}–${fmt(b)}`
 const num = ([a, b]) => a === b ? a.toLocaleString() : `${a.toLocaleString()}–${b.toLocaleString()}`
 // 卡片上只放價格；比例、成交量、在售量收在展開區
-const px = (q, k) => q ? `<span class="${q.soldOut ? 'out' : q.ago ? 'stale' : ''}" title="${unit[k][0]}${q.soldOut ? '（目前售完）' : ''}">${img(unit[k][1])}${fmt(q.price)}</span>` : `<span class="na" title="無${unit[k][0]}成交">${img(unit[k][1])}—</span>`
+const px = (q, k) => q ? `<span class="${q.soldOut ? 'out' : q.ago ? 'stale' : ''}" title="${unit[k][0]}${q.soldOut ? '（近一小時售完）' : ''}">${img(unit[k][1])}${fmt(q.price)}</span>` : `<span class="na" title="無${unit[k][0]}成交">${img(unit[k][1])}—</span>`
 // 不到 1 個通貨的物品倒過來寫成「1 通貨買幾個」，不用自己換算
 const detail = (q, k, it) => {
   const [u] = unit[k]
@@ -213,7 +213,7 @@ const detail = (q, k, it) => {
   const price = cheap
     ? `平均 1 ${u} 買 ${fmt(1 / q.price)} 個<br>成交範圍：1 ${u} 買 ${range([1 / q.range[1], 1 / q.range[0]])} 個`
     : `平均 1 個 = ${fmt(q.price)} ${u}<br>成交範圍：1 個 = ${range(q.range)} ${u}`
-  return `<div><b>${u}</b><br>${price}<br>成交 ${q.vol[0].toLocaleString()} 個 · ${q.soldOut ? '<span class="warn">目前售完（最新一小時沒人在賣）</span>' : `在售 ${num(q.stock)}`}${q.ago ? ` · 最近成交約 ${q.ago} 小時前` : ' · 最近一小時有成交'}</div>`
+  return `<div><b>${u}</b><br>${price}<br>成交 ${q.vol[0].toLocaleString()} 個 · ${q.soldOut ? '<span class="warn">近一小時售完（資料時間那一小時沒人在賣）</span>' : `近一小時在售 ${num(q.stock)}`}${q.ago ? ` · 最近成交約 ${q.ago} 小時前` : ' · 最近一小時有成交'}</div>`
 }
 const key = it => it.noTrade ? -1 : it.chaos?.price ?? it.divine.price * D.divinePrice // 只用來排序，無成交排最後
 const soldOut = it => !it.noTrade && [it.chaos, it.divine].filter(Boolean).every(q => q.soldOut)
@@ -223,7 +223,7 @@ const stockText = it => [['chaos', '混沌'], ['divine', '神聖']].filter(([k])
 const noTradeCard = it => `<details class="card notrade${it.listing ? ' listed' : ''}">
       <summary>${img(it, '')}<div class="nm" title="${esc(it.name)}">${esc(it.name)}</div><div class="px"><span class="na">${it.listing ? `在售 ${num([Math.max(...Object.values(it.listing).filter(Boolean).map(s => s[1])), Math.max(...Object.values(it.listing).filter(Boolean).map(s => s[1]))])}・無成交價` : '24h 無成交'}</span></div></summary>
       <div class="more"><div>${esc(it.en ?? '')}</div><div>${it.listing
-        ? `目前有人在賣（${stockText(it)}），但最近 24 小時沒有成交。官方資料只有成交價、沒有掛單開價，開價請進遊戲通貨交換查看。`
+        ? `近一小時有人在賣（${stockText(it)}），但最近 24 小時沒有成交。官方資料只有成交價、沒有掛單開價，開價請進遊戲通貨交換查看。`
         : '最近 24 小時在通貨交換沒有任何成交，官方資料沒有成交價，所以不顯示價格。'}</div></div></details>`
 const card = it => it.noTrade ? noTradeCard(it) : `<details class="card${soldOut(it) ? ' soldout' : ''}">
       <summary>${img(it, '')}<div class="nm" title="${esc(it.name)}">${esc(it.name)}${soldOut(it) ? '<span class="tag">售完</span>' : ''}</div><div class="px">${px(it.chaos, 'chaos')}${px(it.divine, 'divine')}</div></summary>
