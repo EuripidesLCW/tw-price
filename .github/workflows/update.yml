@@ -1,5 +1,11 @@
-# 每 20 分鐘（每小時 :07 :27 :47，避開擁擠的整點）抓台服通貨交換的官方每小時資料，產生頁面並發布到 GitHub Pages
-# （官方整點約 20 分後才發布上一小時；GitHub 排程可能延遲幾分鐘）
+# 每 20 分鐘（每小時 :07 :27 :47）抓台服通貨交換的官方每小時資料，產生頁面並發布到 GitHub Pages
+# （官方整點約 20 分後才發布上一小時）
+#
+# 觸發方式有兩種，互為備援：
+#   1. GitHub 排程（cron）—— GitHub 不保證準時，新 repo 常常好幾小時都不觸發
+#   2. 接力：每次執行完，等到下一個 :07/:27/:47 再觸發下一次（GitHub 允許用內建臨時權杖觸發 workflow_dispatch，不需任何金鑰）
+#      若已有其他執行在排隊／進行中就不再觸發，避免越接越多條
+# 要停止自動更新：到 repo 的 Actions → update-prices → 右上「⋯」→ Disable workflow
 name: update-prices
 
 on:
@@ -15,13 +21,13 @@ permissions:
   id-token: write
   actions: write
 
-concurrency:
-  group: pages
-  cancel-in-progress: false
-
 jobs:
   build-deploy:
     runs-on: ubuntu-latest
+    # 同一時間只部署一次；排隊等待，不取消進行中的部署
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
@@ -49,3 +55,30 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/update.yml/enable" || true
+
+  # 接力：部署完（成功或失敗都接），等到下一個 :07/:27/:47 觸發下一次
+  next:
+    needs: build-deploy
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: wait for next slot, then trigger the next run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          m=$(date -u +%-M); s=$(date -u +%-S)
+          for t in 7 27 47 67; do [ "$m" -lt "$t" ] && break; done
+          wait=$(( (t - m) * 60 - s ))
+          [ "$wait" -lt 60 ] && wait=$(( wait + 1200 ))
+          echo "等待 ${wait} 秒到下一個時間點"
+          sleep "$wait"
+          others=$(gh run list --workflow update.yml --limit 20 --json databaseId,status \
+            --jq "[.[] | select(.databaseId != ${{ github.run_id }} and (.status == \"queued\" or .status == \"in_progress\" or .status == \"waiting\" or .status == \"pending\" or .status == \"requested\"))] | length")
+          if [ "$others" = "0" ]; then
+            gh workflow run update.yml --ref main
+            echo "已觸發下一次執行"
+          else
+            echo "已有 ${others} 個執行在排隊或進行中，不重複觸發"
+          fi
