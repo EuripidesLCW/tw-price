@@ -143,8 +143,10 @@ function stamp() {
   $('stamp').className = 'stamp' + (old ? ' old' : '')
   $('stamp').innerHTML = `<i class="dot"></i>資料時間 <b>${day(start)} ${hhmm(start)}–${hhmm(end)}</b>`
     + `<span>${old ? '⚠ 已超過 2 小時沒有新資料，請確認自動更新排程' : `約 ${Math.round(age)} 分鐘前的成交`}`
-    + ` · 官方每小時發布，整點約 20 分後可取得 · 本頁每 2 分鐘自動檢查${D.generated ? ` · 抓取於 ${hhmm(new Date(D.generated))}` : ''}</span>`
+    + ` · 官方每小時發布，整點約 20 分後可取得`
+    + `${D.generated ? ` · 雲端抓取 ${hhmm(new Date(D.generated))}（每 20 分鐘）` : ''} · 本頁檢查 ${hhmm(new Date(lastCheck))}（每 2 分鐘）</span>`
 }
+let lastCheck = Date.now() // 本頁最後一次檢查新資料的時間
 function paint() {
   chaos = D.items.find(i => i.en === 'Chaos Orb'); divine = D.items.find(i => i.en === 'Divine Orb')
   $('league').textContent = D.league
@@ -163,6 +165,7 @@ function poll() {
   s.src = 'data.js?t=' + Date.now()
   s.onload = () => {
     s.remove()
+    lastCheck = Date.now()
     const N = window.TW_DATA
     if (N && (N.generated !== D.generated || N.updated !== D.updated)) {
       const newHour = N.updated !== D.updated, y = scrollY
