@@ -82,9 +82,11 @@ h1 small { font-size: 15px; color: var(--muted); font-weight: 400; margin-left: 
   .bar.compact { flex-wrap: nowrap; padding: 8px 0; box-shadow: 0 6px 12px rgb(0 0 0 / .25); }
   .bar.compact .search { flex: 1 1 0; }
   .bar.compact .ftoggle { display: flex; align-items: center; gap: 4px; flex: none; max-width: 46%; padding: 0 10px; border: 1px solid var(--accent); border-radius: 8px; background: var(--accent-soft); color: var(--accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .bar.compact .seg, .bar.compact .chips { display: none; }
+  .bar.compact .seg, .bar.compact .chips, .bar.compact .sorter { display: none; }
+  .sorter { width: 100%; justify-content: space-between; }
+  .sorter select { font-size: 16px; }
   .bar.compact.open { flex-wrap: wrap; max-height: 85vh; overflow-y: auto; }
-  .bar.compact.open .seg { display: flex; }
+  .bar.compact.open .seg, .bar.compact.open .sorter { display: flex; }
   .bar.compact.open .chips { display: grid; }
 }
 @media (max-width: 600px) { .chips { grid-template-columns: repeat(3, 1fr); } .chip { font-size: 13px; height: 34px; padding: 0 6px 0 2px; gap: 3px; } .chip .ic { width: 24px; } .chip img { width: 20px; height: 20px; } .chip img + img { display: none; } }
@@ -95,10 +97,12 @@ h3 { font-size: 15px; font-weight: 600; color: var(--text); margin: 18px 0 8px; 
 h3::before { content: ""; width: 4px; height: 16px; border-radius: 2px; background: var(--accent); flex: none; }
 h3 small { font-size: 12px; font-weight: 400; color: var(--muted); }
 h3::after { content: ""; flex: 1; border-top: 1px solid var(--line); order: 1; }
-.sort { order: 2; margin-left: auto; font: inherit; font-size: 13px; font-weight: 400; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; cursor: pointer; letter-spacing: 0; }
-.sort:hover, .sort:focus { border-color: var(--accent); outline: none; }
-h2 .sort { align-self: center; }
-@media (max-width: 600px) { .sort { font-size: 16px; padding: 2px 4px; } }
+.sorter { display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
+.sorter label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; }
+.sorter select { font: inherit; font-size: 14px; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; min-height: 38px; cursor: pointer; }
+.sorter select:hover, .sorter select:focus { border-color: var(--accent); outline: none; }
+.grpchk input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+.grpchk:has(input:disabled) { opacity: .45; cursor: default; }
 :root { --cw: 200px; --gap: 8px; }
 .grps { display: flex; flex-wrap: wrap; column-gap: var(--gap); }
 .grp { flex: none; min-width: 0; width: calc(var(--k, 1) * (var(--cw) + var(--gap)) - var(--gap)); }
@@ -164,6 +168,10 @@ h2 .sort { align-self: center; }
     <!-- 手機往下滑後，篩選收成這顆按鈕；點開展開分類與顯示範圍 -->
     <button class="ftoggle" id="ftoggle" type="button" aria-expanded="false"></button>
     <div class="seg" id="only" role="group" aria-label="顯示範圍"></div>
+    <div class="sorter">
+      <label>排序 <select id="sortSel" aria-label="排序方式"></select></label>
+      <label class="grpchk"><input type="checkbox" id="grouped"> 依小分類分組</label>
+    </div>
     <div class="chips" id="chips"></div>
   </div>
   <main id="list"></main>
@@ -254,7 +262,7 @@ function compactCheck() {
 addEventListener('scroll', compactCheck, { passive: true })
 mobile.addEventListener('change', compactCheck)
 function setOpen(open) { $('bar').classList.toggle('open', open); $('ftoggle').setAttribute('aria-expanded', String(open)); ftoggleText() }
-const ftoggleText = () => { $('ftoggle').textContent = `${cat}・${MODES[mode]} ${$('bar').classList.contains('open') ? '▴' : '▾'}` }
+const ftoggleText = () => { $('ftoggle').textContent = `${cat}・${MODES[mode]}${SORT_SHORT[sortMode] ? '・' + SORT_SHORT[sortMode] : ''} ${$('bar').classList.contains('open') ? '▴' : '▾'}` }
 $('ftoggle').onclick = () => setOpen(!$('bar').classList.contains('open'))
 function picked() {
   if (!$('bar').classList.contains('open')) return
@@ -312,46 +320,42 @@ const card = it => it.noTrade ? noTradeCard(it) : `<details class="card${soldOut
       <summary>${img(it, '')}<div class="nm" title="${esc(it.name)}">${esc(it.name)}${soldOut(it) ? '<span class="tag">售完</span>' : ''}</div><div class="px">${px(it.chaos, 'chaos')}${px(it.divine, 'divine')}</div></summary>
       <div class="more"><div>${esc(it.en ?? '')}</div>${detail(it.chaos, 'chaos', it)}${detail(it.divine, 'divine', it)}</div></details>`
 const grid = rows => `<div class="grid">${rows.map(card).join('')}</div>`
-// 排序：每個小分類各自選（key = 分頁|小分類），記住選擇。沒有該種價格的物品永遠排最後，其餘相同時保持原本順序
+// 排序（篩選列上一個共用選單，套用到目前看到的全部內容）＋「依小分類分組」開關，都記住選擇。
+// 沒有該種價格的物品永遠排最後；價格相同或沒價格時保持遊戲順序
 const SORTS = [['game', '遊戲順序'], ['c-desc', '混沌石 高→低'], ['c-asc', '混沌石 低→高'], ['d-desc', '神聖石 高→低'], ['d-asc', '神聖石 低→高']]
-let sorts = {}
-try { sorts = JSON.parse(localStorage.getItem('sorts') || '{}') } catch {}
-const sortCtl = (k, first = '遊戲順序') => `<select class="sort" data-sort="${esc(k)}" aria-label="排序方式">${SORTS.map(([v, l], i) =>
-  `<option value="${v}"${(sorts[k] || 'game') === v ? ' selected' : ''}>${i ? l : first}</option>`).join('')}</select>`
-function applySort(rows, k) {
-  const s = sorts[k] || 'game'
-  if (s === 'game') return rows
-  const [c, dir] = s.split('-'), p = it => (c === 'c' ? it.chaos : it.divine)?.price
+const SORT_SHORT = { 'c-desc': '混沌↓', 'c-asc': '混沌↑', 'd-desc': '神聖↓', 'd-asc': '神聖↑' }
+let sortMode = 'game', grouped = true
+try { if (SORT_SHORT[localStorage.getItem('sortMode')]) sortMode = localStorage.getItem('sortMode'); grouped = localStorage.getItem('grouped') !== '0' } catch {}
+$('sortSel').innerHTML = SORTS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')
+$('sortSel').value = sortMode
+$('grouped').checked = grouped
+$('sortSel').onchange = () => { sortMode = $('sortSel').value; render(); try { localStorage.setItem('sortMode', sortMode) } catch {} }
+$('grouped').onchange = () => { grouped = $('grouped').checked; render(); try { localStorage.setItem('grouped', grouped ? '1' : '0') } catch {} }
+function applySort(rows) {
+  if (sortMode === 'game') return rows
+  const [c, dir] = sortMode.split('-'), p = it => (c === 'c' ? it.chaos : it.divine)?.price
   return [...rows].sort((a, b) => {
     const x = p(a), y = p(b)
     if (x == null || y == null) return (x == null) - (y == null)
     return dir === 'desc' ? y - x : x - y
   })
 }
-$('list').addEventListener('change', e => {
-  const s = e.target.closest('select.sort'); if (!s) return
-  sorts[s.dataset.sort] = s.value; render()
-  try { localStorage.setItem('sorts', JSON.stringify(sorts)) } catch {}
-})
-const section = (title, rows, k) => rows.length ? `<section><h2>${esc(title)}<span>${rows.length} 種</span>${k ? sortCtl(k, '排名順序') : ''}</h2>${grid(applySort(rows, k))}</section>` : ''
-// 有遊戲版面的分頁：照遊戲的小分組與順序；沒在版面裡的物品放最後（照價格）。每個小分類標題旁有排序選單
+const section = (title, rows) => rows.length ? `<section><h2>${esc(title)}<span>${rows.length} 種</span></h2>${grid(applySort(rows))}</section>` : ''
+// 有遊戲版面的分頁：分組開＝照遊戲的小分組（組內套用排序）；分組關＝整個分類一起排（先照遊戲順序，再套用排序）
 function tab(c, rows) {
   if (!rows.length) return ''
   const gs = D.groups[c]
-  if (!gs) return section(c, rows.sort((a, b) => key(b) - key(a)), c)
-  // 分類層級排序（key = @分類）：選了價格排序 → 不分小分類，整個分類一起排；「依小分類」→ 照遊戲的小分類排列
-  const tk = '@' + c
-  const single = gs.length === 1 && rows.every(i => i.group === gs[0]) // 只有一個小分類：不重複顯示小分類標題與選單
-  const head = `<h2>${esc(c)}<span>${rows.length} 種</span>${sortCtl(tk, single ? '遊戲順序' : '依小分類')}</h2>`
+  if (!gs) return section(c, rows.sort((a, b) => key(b) - key(a)))
+  const head = `<h2>${esc(c)}<span>${rows.length} 種</span></h2>`
   const gi = g => g == null ? gs.length : gs.indexOf(g)
-  if ((sorts[tk] || 'game') !== 'game') {
-    const flat = [...rows].sort((a, b) => gi(a.group) - gi(b.group) || (a.ord ?? 0) - (b.ord ?? 0)) // 先照遊戲順序，價格相同或沒價格時保持此順序
-    return `<section>${head}${grid(applySort(flat, tk))}</section>`
+  if (!grouped) {
+    const flat = [...rows].sort((a, b) => gi(a.group) - gi(b.group) || (a.ord ?? 0) - (b.ord ?? 0))
+    return `<section>${head}${grid(applySort(flat))}</section>`
   }
+  const single = gs.length === 1 && rows.every(i => i.group === gs[0]) // 只有一個小分類：不重複顯示小分類標題
   const parts = [...gs, null].map(g => {
-    const k = c + '|' + (g ?? '其他')
-    const r = applySort(rows.filter(i => (i.group ?? null) === g).sort((a, b) => g ? a.ord - b.ord : key(b) - key(a)), k)
-    return r.length ? `<div class="grp" style="--n:${r.length}">${single ? '' : `<h3>${esc(g ?? '其他')}<small>${r.length}</small>${sortCtl(k)}</h3>`}${grid(r)}</div>` : ''
+    const r = applySort(rows.filter(i => (i.group ?? null) === g).sort((a, b) => g ? a.ord - b.ord : key(b) - key(a)))
+    return r.length ? `<div class="grp" style="--n:${r.length}">${single ? '' : `<h3>${esc(g ?? '其他')}<small>${r.length}</small></h3>`}${grid(r)}</div>` : ''
   }).join('')
   return `<section>${head}<div class="grps">${parts}</div></section>`
 }
@@ -378,10 +382,12 @@ function render() {
   const html = cat === '熱門'
     ? hotSeg() + section(hotRange === 'h1'
       ? `熱門：${md(new Date(D.updated - 3600e3))}–${hhmm(new Date(D.updated))} 這 1 小時成交總值前 30 名（每小時更新）`
-      : `熱門：${md(new Date(D.updated - 24 * 3600e3))}–${md(new Date(D.updated))} 這 24 小時成交總值前 30 名（每小時隨新資料重新排名）`, shown, '熱門|' + hotRange)
+      : `熱門：${md(new Date(D.updated - 24 * 3600e3))}–${md(new Date(D.updated))} 這 24 小時成交總值前 30 名（每小時隨新資料重新排名）`, shown)
     : D.cats.filter(c => cat === '所有' || c === cat).map(c => tab(c, shown.filter(i => i.cat === c))).join('')
   $('list').innerHTML = html || '<p class="empty">找不到符合的物品</p>'
   segPaint(items)
+  $('sortSel').options[0].text = cat === '熱門' ? '排名順序' : '遊戲順序'
+  $('grouped').disabled = cat === '熱門'
   ftoggleText()
   fit()
 }
