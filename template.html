@@ -111,7 +111,8 @@ h3::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
   <main id="list"></main>
 </div>
 <div class="toast" id="toast"></div>
-<script src="data.js"></script>
+<!-- 每次開頁都帶時間參數，避免瀏覽器或 GitHub 快取給舊資料 -->
+<script>document.write('<script src="data.js?t=' + Date.now() + '"><\/script>')</script>
 <script>
 let D = window.TW_DATA
 const $ = id => document.getElementById(id)
@@ -148,17 +149,21 @@ function paint() {
   if (typeof segPaint === "function") segPaint()
 }
 $('chips').onclick = e => { const t = e.target.closest('.chip'); if (t) { cat = t.dataset.cat; for (const b of $('chips').children) b.setAttribute('aria-pressed', b === t); render() } }
-// 自動更新：每 2 分鐘重新載入 data.js（排程每 20 分鐘在背景重抓官方資料），有新的小時就換上
+// 自動更新：每 2 分鐘重新載入 data.js（雲端每 20 分鐘重新產生）。
+// 用「產生時間」比對：同一小時但內容改過（例如版面更新）也會換上；有新的小時才跳提示
 function poll() {
   const s = document.createElement('script')
   s.src = 'data.js?t=' + Date.now()
   s.onload = () => {
     s.remove()
-    if (window.TW_DATA && window.TW_DATA.updated !== D.updated) {
-      const y = scrollY
-      D = window.TW_DATA; paint(); render(); scrollTo(0, y)
-      $('toast').textContent = `已更新到 ${hhmm(new Date(D.updated - 3600e3))}–${hhmm(new Date(D.updated))} 的資料`
-      $('toast').classList.add('show'); setTimeout(() => $('toast').classList.remove('show'), 4000)
+    const N = window.TW_DATA
+    if (N && (N.generated !== D.generated || N.updated !== D.updated)) {
+      const newHour = N.updated !== D.updated, y = scrollY
+      D = N; paint(); render(); scrollTo(0, y)
+      if (newHour) {
+        $('toast').textContent = `已更新到 ${hhmm(new Date(D.updated - 3600e3))}–${hhmm(new Date(D.updated))} 的資料`
+        $('toast').classList.add('show'); setTimeout(() => $('toast').classList.remove('show'), 4000)
+      }
     } else stamp()
   }
   s.onerror = () => s.remove()
