@@ -73,6 +73,15 @@ h3::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
 .card .px .stale { color: var(--stale); }
 .card .px .out { color: var(--stale); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--stale) 70%, transparent); }
 .card.soldout { opacity: .62; border-style: dashed; }
+.card.notrade { opacity: .4; border-style: dashed; background: transparent; }
+.card.notrade:hover, .card.notrade[open] { opacity: .85; }
+.card.notrade .px .na { font-size: 12px; font-weight: 400; }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex: none; }
+.seg button { border: 0; background: var(--panel); color: var(--muted); font: inherit; font-size: 14px; padding: 0 14px; min-height: 38px; cursor: pointer; white-space: nowrap; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button:hover { color: var(--text); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #1a1408; font-weight: 700; }
+@media (max-width: 600px) { .seg { width: 100%; } .seg button { flex: 1; } }
 .card.soldout:hover, .card.soldout[open] { opacity: 1; }
 .tag { font-size: 11px; line-height: 1; padding: 2px 5px; border-radius: 4px; border: 1px solid var(--stale); color: var(--muted); margin-left: 6px; vertical-align: 2px; font-weight: 400; }
 .more .warn { color: var(--accent); }
@@ -94,6 +103,7 @@ h3::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
   </header>
   <div class="bar">
     <input id="q" type="search" placeholder="搜尋物品名稱（中文或英文）" autocomplete="off">
+    <div class="seg" id="only" role="group" aria-label="顯示範圍"><button type="button" data-only="0">全部顯示</button><button type="button" data-only="1">只看有成交</button></div>
     <div class="chips" id="chips"></div>
   </div>
   <main id="list"></main>
@@ -154,6 +164,16 @@ function poll() {
 setInterval(poll, 120e3)
 document.addEventListener('visibilitychange', () => { if (!document.hidden) poll() })
 $('q').oninput = render
+// 顯示範圍：全部（照遊戲完整列出）／只看有成交；記住選擇
+let onlyTraded = false
+try { onlyTraded = localStorage.getItem('only') === '1' } catch {}
+const segPaint = () => { for (const b of $('only').children) b.setAttribute('aria-pressed', (b.dataset.only === '1') === onlyTraded) }
+$('only').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return
+  onlyTraded = b.dataset.only === '1'; segPaint(); render()
+  try { localStorage.setItem('only', onlyTraded ? '1' : '0') } catch {}
+}
+segPaint()
 document.addEventListener('toggle', e => { if (e.target.open) for (const d of document.querySelectorAll('details.card[open]')) if (d !== e.target) d.open = false }, true)
 document.addEventListener('click', e => { if (!e.target.closest('details.card')) for (const d of document.querySelectorAll('details.card[open]')) d.open = false })
 
@@ -172,9 +192,13 @@ const detail = (q, k, it) => {
     : `平均 1 個 = ${fmt(q.price)} ${u}<br>成交範圍：1 個 = ${range(q.range)} ${u}`
   return `<div><b>${u}</b><br>${price}<br>成交 ${q.vol[0].toLocaleString()} 個 · ${q.soldOut ? '<span class="warn">目前售完（最新一小時沒人在賣）</span>' : `在售 ${num(q.stock)}`}${q.ago ? ` · 最近成交約 ${q.ago} 小時前` : ' · 最近一小時有成交'}</div>`
 }
-const key = it => it.chaos?.price ?? it.divine.price * D.divinePrice // 只用來排序
-const soldOut = it => [it.chaos, it.divine].filter(Boolean).every(q => q.soldOut)
-const card = it => `<details class="card${soldOut(it) ? ' soldout' : ''}">
+const key = it => it.noTrade ? -1 : it.chaos?.price ?? it.divine.price * D.divinePrice // 只用來排序，無成交排最後
+const soldOut = it => !it.noTrade && [it.chaos, it.divine].filter(Boolean).every(q => q.soldOut)
+// 24 小時沒有成交的物品：照遊戲位置顯示，但沒有價格（官方資料沒有成交價，不做推算）
+const noTradeCard = it => `<details class="card notrade">
+      <summary>${img(it, '')}<div class="nm" title="${esc(it.name)}">${esc(it.name)}</div><div class="px"><span class="na">24h 無成交</span></div></summary>
+      <div class="more"><div>${esc(it.en ?? '')}</div><div>最近 24 小時在通貨交換沒有任何成交，官方資料沒有成交價，所以不顯示價格。</div></div></details>`
+const card = it => it.noTrade ? noTradeCard(it) : `<details class="card${soldOut(it) ? ' soldout' : ''}">
       <summary>${img(it, '')}<div class="nm" title="${esc(it.name)}">${esc(it.name)}${soldOut(it) ? '<span class="tag">售完</span>' : ''}</div><div class="px">${px(it.chaos, 'chaos')}${px(it.divine, 'divine')}</div></summary>
       <div class="more"><div>${esc(it.en ?? '')}</div>${detail(it.chaos, 'chaos', it)}${detail(it.divine, 'divine', it)}</div></details>`
 const grid = rows => `<div class="grid">${rows.map(card).join('')}</div>`
@@ -192,7 +216,7 @@ function tab(c, rows) {
 }
 function render() {
   const q = $('q').value.trim().toLowerCase()
-  const hit = it => !q || it.name.toLowerCase().includes(q) || it.en?.toLowerCase().includes(q)
+  const hit = it => (!onlyTraded || !it.noTrade) && (!q || it.name.toLowerCase().includes(q) || it.en?.toLowerCase().includes(q))
   const byId = new Map(D.items.map(i => [i.id, i]))
   const html = cat === '熱門'
     ? section('熱門（24 小時成交總值前 30）', D.hot.map(id => byId.get(id)).filter(hit))

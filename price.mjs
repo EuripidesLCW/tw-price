@@ -96,7 +96,7 @@ const layout = JSON.parse(fs.readFileSync(path.join(here, 'layout.json'), 'utf8'
 const placed = new Map(), groups = {}
 for (const [tab, gs] of Object.entries(layout)) if (Array.isArray(gs)) {
   groups[tab] = gs.map(g => g.group)
-  gs.forEach((g, gi) => g.items.forEach((n, i) => placed.set(norm(n), { cat: tab, group: g.group, ord: gi * 1000 + i })))
+  gs.forEach((g, gi) => g.items.forEach((n, i) => placed.set(norm(n), { cat: tab, group: g.group, ord: gi * 1000 + i, label: n })))
 }
 // 分類比照遊戲內通貨交換市場的分頁；交易網站分類 + 物品類型對照
 const EX_CATS = ['通貨', '精髓', '掘獄聯盟', '綢帶', '命運卡', '譫妄異域', '戰亂之殤', '碎片', '油瓶', '催化劑', '預兆', '紋身', '探險聯盟', '生靈之力', '符文之結', '其他']
@@ -157,6 +157,12 @@ const catIcons = Object.fromEntries(Object.entries(CAT_ICONS).map(([k, ids]) => 
 // 熱門 = 24 小時成交總值（換算成混沌石，只用來排名）最高的 30 種
 const worth = it => (it.chaos ? it.chaos.vol24 * it.chaos.price : 0) + (it.divine ? it.divine.vol24 * it.divine.price * divinePrice : 0)
 const hot = [...items].sort((x, y) => worth(y) - worth(x)).slice(0, 30).map(i => i.id)
+// 遊戲版面裡 24 小時沒有成交的物品也列出（noTrade，不給價格），讓每頁跟遊戲一樣完整
+const traded = new Set(items.map(i => norm(i.name)))
+const iconByZh = new Map(), enByZh = new Map()
+for (const c of stat.result) for (const e of c.entries) if (e.image) iconByZh.set(norm(e.text), 'https://webtw.poecdn.com' + e.image)
+for (const [en, z] of zhByEn) { enByZh.set(norm(z.name), en); if (!iconByZh.has(norm(z.name)) && z.icon) iconByZh.set(norm(z.name), z.icon) }
+for (const [n, p] of placed) if (!traded.has(n)) items.push({ name: p.label, en: enByZh.get(n), icon: iconByZh.get(n), ...p, id: 'layout:' + n, noTrade: true })
 
 // 4. 產生網頁
 const data = { generated: Date.now(), catIcons, league, divinePrice, divineRange: pair[DIVINE].chaos.range, updated: (latest + 3600) * 1000, hours: HOURS, groups, hot, cats: EX_CATS.filter(c => items.some(i => i.cat === c)), items }
@@ -164,7 +170,7 @@ const data = { generated: Date.now(), catIcons, league, divinePrice, divineRange
 fs.writeFileSync(path.join(here, 'data.js.tmp'), 'window.TW_DATA = ' + JSON.stringify(data))
 fs.renameSync(path.join(here, 'data.js.tmp'), path.join(here, 'data.js'))
 fs.copyFileSync(path.join(here, 'template.html'), path.join(here, 'index.html'))
-console.log(`${league}：${items.length} 種物品，1 神聖石 ≈ ${divinePrice.toFixed(1)} 混沌石，資料到 ${new Date(data.updated).toLocaleString('zh-TW')}`)
+console.log(`${league}：${items.filter(i => !i.noTrade).length} 種有成交（版面共 ${items.length} 種），1 神聖石 ≈ ${divinePrice.toFixed(1)} 混沌石，資料到 ${new Date(data.updated).toLocaleString('zh-TW')}`)
 if (!process.argv.includes('--no-open')) execFile('cmd', ['/c', 'start', '', path.join(here, 'index.html')])
 
 // 檢查模式：node price.mjs --audit → 列出遊戲版面裡每個沒顯示的物品，以及原因
@@ -181,7 +187,7 @@ if (process.argv.includes('--audit')) {
       if (i === 0 && m.highest_stock[x] > 0) s.listedNow.add(other)
     }
   }
-  const shown = new Set(items.map(i => norm(i.name)))
+  const shown = new Set(items.filter(i => !i.noTrade).map(i => norm(i.name)))
   const why = {}
   for (const [tab, gs] of Object.entries(layout)) if (Array.isArray(gs)) for (const g of gs) for (const n of g.items) {
     if (shown.has(norm(n))) continue
