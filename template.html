@@ -122,6 +122,9 @@ h3::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
 .seg button:hover { color: var(--text); }
 .seg button[aria-pressed="true"] { background: var(--accent); color: #1a1408; font-weight: 700; }
 .seg button small { margin-left: 6px; font-size: 12px; opacity: .75; font-weight: 400; }
+.hotseg { display: inline-flex; margin-top: 18px; }
+.hotseg button { min-height: 34px; font-size: 13px; }
+@media (max-width: 600px) { .hotseg { display: flex; width: 100%; } }
 .card.notrade.listed { opacity: .7; }
 @media (max-width: 600px) { .seg { width: 100%; } .seg button { flex: 1; } }
 .card.soldout:hover, .card.soldout[open] { opacity: 1; }
@@ -318,18 +321,29 @@ function tab(c, rows) {
   return `<section><h2>${esc(c)}<span>${rows.length} 種</span></h2><div class="grps">${parts}</div></section>`
 }
 // 目前分類＋搜尋字範圍內的物品（顯示範圍按鈕的數字也用它算）
+// 熱門的計算範圍：近 1 小時（預設，最貼近目前市場）／近 24 小時（主流、較穩定）；記住選擇
+let hotRange = 'h1'
+try { if (localStorage.getItem('hotRange') === 'h24') hotRange = 'h24' } catch {}
+const hotSeg = () => `<div class="seg hotseg" role="group" aria-label="熱門計算範圍">${[['h1', '近 1 小時'], ['h24', '近 24 小時']].map(([k, l]) => `<button type="button" data-hot="${k}" aria-pressed="${k === hotRange}">${l}</button>`).join('')}</div>`
+$('list').addEventListener('click', e => {
+  const b = e.target.closest('[data-hot]'); if (!b) return
+  hotRange = b.dataset.hot; render()
+  try { localStorage.setItem('hotRange', hotRange) } catch {}
+})
 function scope() {
   const q = $('q').value.trim().toLowerCase()
   const match = it => !q || it.name.toLowerCase().includes(q) || it.en?.toLowerCase().includes(q)
   const byId = new Map(D.items.map(i => [i.id, i]))
-  const base = cat === '熱門' ? D.hot.map(id => byId.get(id)).filter(Boolean)
+  const base = cat === '熱門' ? (hotRange === 'h1' ? D.hot1 ?? D.hot : D.hot).map(id => byId.get(id)).filter(Boolean)
     : D.items.filter(i => cat === '所有' ? D.cats.includes(i.cat) : i.cat === cat)
   return base.filter(match)
 }
 function render() {
   const items = scope(), shown = items.filter(it => inMode(it, mode))
   const html = cat === '熱門'
-    ? section(`熱門：${md(new Date(D.updated - 24 * 3600e3))}–${md(new Date(D.updated))} 這 24 小時成交總值前 30 名（每小時隨新資料重新排名）`, shown)
+    ? hotSeg() + section(hotRange === 'h1'
+      ? `熱門：${md(new Date(D.updated - 3600e3))}–${hhmm(new Date(D.updated))} 這 1 小時成交總值前 30 名（每小時更新）`
+      : `熱門：${md(new Date(D.updated - 24 * 3600e3))}–${md(new Date(D.updated))} 這 24 小時成交總值前 30 名（每小時隨新資料重新排名）`, shown)
     : D.cats.filter(c => cat === '所有' || c === cat).map(c => tab(c, shown.filter(i => i.cat === c))).join('')
   $('list').innerHTML = html || '<p class="empty">找不到符合的物品</p>'
   segPaint(items)

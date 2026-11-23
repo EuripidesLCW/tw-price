@@ -157,6 +157,17 @@ const catIcons = Object.fromEntries(Object.entries(CAT_ICONS).map(([k, ids]) => 
 // 熱門 = 24 小時成交總值（換算成混沌石，只用來排名）最高的 30 種
 const worth = it => (it.chaos ? it.chaos.vol24 * it.chaos.price : 0) + (it.divine ? it.divine.vol24 * it.divine.price * divinePrice : 0)
 const hot = [...items].sort((x, y) => worth(y) - worth(x)).slice(0, 30).map(i => i.id)
+// 熱門（近 1 小時）= 資料時間那一小時的成交總值前 30 名（同樣換算成混沌石，只用來排名）
+const worth1 = {}
+for (const m of digests[0].markets) {
+  if (m.league !== league || !Object.values(m.volume_traded).every(v => v > 0)) continue
+  const [a, b] = m.market_pair
+  for (const [x, y] of [[a, b], [b, a]]) {
+    if (y === CHAOS) worth1[x] = (worth1[x] ?? 0) + m.volume_traded[CHAOS]
+    else if (y === DIVINE) worth1[x] = (worth1[x] ?? 0) + m.volume_traded[DIVINE] * divinePrice
+  }
+}
+const hot1 = items.filter(i => worth1[i.id]).sort((x, y) => worth1[y.id] - worth1[x.id]).slice(0, 30).map(i => i.id)
 // 遊戲版面裡 24 小時沒有成交的物品也列出（noTrade，不給價格），讓每頁跟遊戲一樣完整
 const traded = new Set(items.map(i => norm(i.name)))
 const iconByZh = new Map(), enByZh = new Map()
@@ -172,7 +183,7 @@ for (const [n, p] of placed) if (!traded.has(n)) {
 }
 
 // 4. 產生網頁
-const data = { generated: Date.now(), catIcons, league, divinePrice, divineRange: pair[DIVINE].chaos.range, updated: (latest + 3600) * 1000, hours: HOURS, groups, hot, cats: EX_CATS.filter(c => items.some(i => i.cat === c)), items }
+const data = { generated: Date.now(), catIcons, league, divinePrice, divineRange: pair[DIVINE].chaos.range, updated: (latest + 3600) * 1000, hours: HOURS, groups, hot, hot1, cats: EX_CATS.filter(c => items.some(i => i.cat === c)), items }
 // 資料放 data.js（網頁會定時重新載入它來自動更新）；先寫暫存檔再改名，避免網頁讀到寫一半的檔案
 fs.writeFileSync(path.join(here, 'data.js.tmp'), 'window.TW_DATA = ' + JSON.stringify(data))
 fs.renameSync(path.join(here, 'data.js.tmp'), path.join(here, 'data.js'))
