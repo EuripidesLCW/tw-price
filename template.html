@@ -141,17 +141,19 @@ function stamp() {
   const end = new Date(D.updated), start = new Date(D.updated - 3600e3), age = (Date.now() - D.updated) / 60e3
   const old = age > 150
   $('stamp').className = 'stamp' + (old ? ' old' : '')
+  // 官方在整點約 20 分後發布上一小時 → 下一小時（end ~ end+1h）的資料約在 end+1h+20分 出現
+  const next = new Date(D.updated + 3600e3 + 20 * 60e3)
   $('stamp').innerHTML = `<i class="dot"></i>資料時間 <b>${day(start)} ${hhmm(start)}–${hhmm(end)}</b>`
-    + `<span>${old ? '⚠ 已超過 2 小時沒有新資料，請確認自動更新排程' : `約 ${Math.round(age)} 分鐘前的成交`}`
-    + ` · 官方每小時發布，整點約 20 分後可取得`
-    + `${D.generated ? ` · 雲端抓取 ${hhmm(new Date(D.generated))}（每 20 分鐘）` : ''} · 本頁檢查 ${hhmm(new Date(lastCheck))}（每 2 分鐘）</span>`
+    + `<span>${old ? '⚠ 已超過 2 小時沒有新資料（可能是官方延遲或自動更新故障），價格可能已過時' : `這一小時的成交彙總；下一小時的資料預計 ${hhmm(next)} 後出現`}`
+    + `${D.generated ? ` · 雲端抓取 ${hhmm(new Date(D.generated))}` : ''} · 本頁檢查 ${hhmm(new Date(lastCheck))}（每 2 分鐘自動檢查）</span>`
 }
 let lastCheck = Date.now() // 本頁最後一次檢查新資料的時間
 function paint() {
   chaos = D.items.find(i => i.en === 'Chaos Orb'); divine = D.items.find(i => i.en === 'Divine Orb')
   $('league').textContent = D.league
-  $('rate').innerHTML = `${img(divine)} 1 = <b>${fmt(D.divinePrice)}</b> ${img(chaos)} <small style="color:var(--muted);font-size:13px">（成交 ${fmt(D.divineRange[0])}–${fmt(D.divineRange[1])}）</small>`
-  $('meta').textContent = `遊戲內通貨交換的實際成交價：混沌石價、神聖石價各自取自該交易對最近一次有成交的小時（不互相換算）。分類與順序照遊戲；${D.hours} 小時內沒成交的標「無成交」、資料時間那一小時沒人賣的標「售完」`
+  $('rate').innerHTML = `${img(divine)} 1 = <b>${fmt(D.divinePrice)}</b> ${img(chaos)} <small style="color:var(--muted);font-size:13px">（該小時成交 ${fmt(D.divineRange[0])}–${fmt(D.divineRange[1])}）</small>`
+  $('meta').textContent = `價格是遊戲內通貨交換的實際成交均價：混沌石價、神聖石價各自來自實際成交，不互相換算。`
+    + `價格灰色＝不是資料時間那一小時的成交（較舊，點開可看是幾小時前）；「售完」＝資料時間那一小時沒人在賣；「無成交」＝${D.hours} 小時內沒有成交，所以沒有價格。分類與順序照遊戲。`
   const chips = ['所有', '熱門', ...D.cats]
   if (!chips.includes(cat)) cat = '所有'
   $('chips').innerHTML = chips.map(c => `<button class="chip" data-cat="${esc(c)}" aria-pressed="${c === cat}"><span class="ic">${catIcon(c).map(src => `<img src="${src}" alt="">`).join('')}</span>${esc(c)}</button>`).join('')
@@ -204,16 +206,18 @@ const unit = { get chaos() { return ['混沌石', chaos] }, get divine() { retur
 const range = ([a, b]) => a === b ? fmt(a) : `${fmt(a)}–${fmt(b)}`
 const num = ([a, b]) => a === b ? a.toLocaleString() : `${a.toLocaleString()}–${b.toLocaleString()}`
 // 卡片上只放價格；比例、成交量、在售量收在展開區
-const px = (q, k) => q ? `<span class="${q.soldOut ? 'out' : q.ago ? 'stale' : ''}" title="${unit[k][0]}${q.soldOut ? '（近一小時售完）' : ''}">${img(unit[k][1])}${fmt(q.price)}</span>` : `<span class="na" title="無${unit[k][0]}成交">${img(unit[k][1])}—</span>`
-// 不到 1 個通貨的物品倒過來寫成「1 通貨買幾個」，不用自己換算
+const px = (q, k) => q ? `<span class="${q.soldOut ? 'out' : q.ago ? 'stale' : ''}" title="${unit[k][0]}${q.soldOut ? '（資料時間那一小時沒人在賣）' : q.ago ? `（約 ${q.ago} 小時前的成交）` : ''}">${img(unit[k][1])}${fmt(q.price)}</span>` : `<span class="na" title="24 小時內沒有${unit[k][0]}成交">${img(unit[k][1])}—</span>`
+// 不到 1 個通貨的物品倒過來寫成「1 通貨買幾個」，不用自己換算。
+// 價格、區間、成交量都來自「價格那一小時」（可能比資料時間早）；在售／售完則是資料時間那一小時的狀況，兩者分開寫清楚
 const detail = (q, k, it) => {
   const [u] = unit[k]
   if (!q) return it === unit[k][1] ? "" : `<div><b>${u}</b>：24 小時內沒有成交</div>`
-  const cheap = q.price < 1
-  const price = cheap
-    ? `平均 1 ${u} 買 ${fmt(1 / q.price)} 個<br>成交範圍：1 ${u} 買 ${range([1 / q.range[1], 1 / q.range[0]])} 個`
-    : `平均 1 個 = ${fmt(q.price)} ${u}<br>成交範圍：1 個 = ${range(q.range)} ${u}`
-  return `<div><b>${u}</b><br>${price}<br>成交 ${q.vol[0].toLocaleString()} 個 · ${q.soldOut ? '<span class="warn">近一小時售完（資料時間那一小時沒人在賣）</span>' : `近一小時在售 ${num(q.stock)}`}${q.ago ? ` · 最近成交約 ${q.ago} 小時前` : ' · 最近一小時有成交'}</div>`
+  const when = q.ago ? `約 ${q.ago} 小時前那一小時` : '資料時間那一小時'
+  const price = q.price < 1
+    ? `成交均價：1 ${u} 買 ${fmt(1 / q.price)} 個<br>成交區間：1 ${u} 買 ${range([1 / q.range[1], 1 / q.range[0]])} 個`
+    : `成交均價：1 個 = ${fmt(q.price)} ${u}<br>成交區間：1 個 = ${range(q.range)} ${u}`
+  const stock = q.soldOut ? '<span class="warn">資料時間那一小時沒人在賣（售完）</span>' : `資料時間那一小時在售 ${num(q.stock)} 個${q.stock[0] !== q.stock[1] ? '（這一小時內最少～最多）' : ''}`
+  return `<div><b>${u}</b>（${when}的成交）<br>${price}<br>成交 ${q.vol[0].toLocaleString()} 個<br>${stock}</div>`
 }
 const key = it => it.noTrade ? -1 : it.chaos?.price ?? it.divine.price * D.divinePrice // 只用來排序，無成交排最後
 const soldOut = it => !it.noTrade && [it.chaos, it.divine].filter(Boolean).every(q => q.soldOut)
@@ -223,7 +227,7 @@ const stockText = it => [['chaos', '混沌'], ['divine', '神聖']].filter(([k])
 const noTradeCard = it => `<details class="card notrade${it.listing ? ' listed' : ''}">
       <summary>${img(it, '')}<div class="nm" title="${esc(it.name)}">${esc(it.name)}</div><div class="px"><span class="na">${it.listing ? `在售 ${Math.max(...Object.values(it.listing).filter(Boolean).map(s => s[1])).toLocaleString()}・無成交價` : '24h 無成交'}</span></div></summary>
       <div class="more"><div>${esc(it.en ?? '')}</div><div>${it.listing
-        ? `近一小時有人在賣（${stockText(it)}），但最近 24 小時沒有成交。官方資料只有成交價、沒有掛單開價，開價請進遊戲通貨交換查看。`
+        ? `資料時間那一小時有人在賣（${stockText(it)}），但最近 24 小時沒有成交。官方資料只有成交價、沒有掛單開價，開價請進遊戲通貨交換查看。`
         : '最近 24 小時在通貨交換沒有任何成交，官方資料沒有成交價，所以不顯示價格。'}</div></div></details>`
 const card = it => it.noTrade ? noTradeCard(it) : `<details class="card${soldOut(it) ? ' soldout' : ''}">
       <summary>${img(it, '')}<div class="nm" title="${esc(it.name)}">${esc(it.name)}${soldOut(it) ? '<span class="tag">售完</span>' : ''}</div><div class="px">${px(it.chaos, 'chaos')}${px(it.divine, 'divine')}</div></summary>
@@ -266,7 +270,7 @@ function fit() {
   document.documentElement.style.setProperty('--cw', Math.floor((w - gap * (cols - 1)) / cols * 100) / 100 + 'px')
   for (const g of document.querySelectorAll('.grp')) g.style.setProperty('--k', Math.min(+g.style.getPropertyValue('--n'), cols)) // 每組佔幾欄
 }
-const themeBtn = () => { $('theme').textContent = document.documentElement.dataset.theme === 'light' ? '🌙 深色' : '☀ 淺色' }
+const themeBtn = () => { $('theme').textContent = document.documentElement.dataset.theme === 'light' ? '🌙 切換深色' : '☀ 切換淺色' }
 $('theme').onclick = () => {
   const light = document.documentElement.dataset.theme !== 'light'
   if (light) document.documentElement.dataset.theme = 'light'; else delete document.documentElement.dataset.theme
