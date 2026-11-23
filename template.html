@@ -97,7 +97,12 @@ h3::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
 .more .warn { color: var(--accent); }
 .card .more { position: absolute; left: -1px; right: -1px; top: 100%; background: var(--panel); border: 1px solid var(--accent); border-top: 1px dashed var(--line); border-radius: 0 0 10px 10px; box-shadow: 0 10px 24px rgb(0 0 0 / .35); padding: 6px 10px 10px; font-size: 12px; color: var(--muted); line-height: 1.6; }
 .card .more b { color: var(--text); font-weight: 500; }
-.card .more div + div { margin-top: 4px; }
+.card .more > div + div { margin-top: 8px; }
+.card .more dl { display: grid; grid-template-columns: auto 1fr; gap: 1px 10px; margin: 2px 0 0; }
+.card .more dt { color: var(--muted); }
+.card .more dd { margin: 0; color: var(--text); }
+.nw { white-space: nowrap; }
+.card .more .none b { font-weight: 500; }
 .ico { width: 18px; height: 18px; }
 .empty { color: var(--muted); padding: 40px 0; text-align: center; }
 @media (max-width: 600px) { .card .px { gap: 0 8px; font-size: 14px; } }
@@ -130,6 +135,10 @@ const fmt = n => n >= 100 ? Math.round(n).toLocaleString() : n >= 10 ? n.toFixed
 const esc = s => String(s).replace(/[&<>"]/g, c => `&#${c.charCodeAt(0)};`)
 const two = n => String(n).padStart(2, '0')
 const hhmm = d => `${two(d.getHours())}:${two(d.getMinutes())}`
+// 往前第 ago 個整點時段（0 = 資料時間），例：14:00–15:00
+const span = ago => `${hhmm(new Date(D.updated - (ago + 1) * 3600e3))}–${hhmm(new Date(D.updated - ago * 3600e3))}`
+// 放在網頁內容裡的時段，不讓它在「–」處斷行
+const spanH = ago => `<span class="nw">${span(ago)}</span>`
 const day = d => `${d.getFullYear()}/${two(d.getMonth() + 1)}/${two(d.getDate())}（${'日一二三四五六'[d.getDay()]}）`
 let cat = '所有'
 const vol = it => (it.chaos?.vol24 ?? 0) + (it.divine?.vol24 ?? 0)
@@ -141,19 +150,19 @@ function stamp() {
   const end = new Date(D.updated), start = new Date(D.updated - 3600e3), age = (Date.now() - D.updated) / 60e3
   const old = age > 150
   $('stamp').className = 'stamp' + (old ? ' old' : '')
-  // 官方在整點約 20 分後發布上一小時 → 下一小時（end ~ end+1h）的資料約在 end+1h+20分 出現
+  // 官方在整點約 20 分後發布上一個整點時段 → 下一個時段（end ~ end+1h）約在 end+1h+20分 出現
   const next = new Date(D.updated + 3600e3 + 20 * 60e3)
   $('stamp').innerHTML = `<i class="dot"></i>資料時間 <b>${day(start)} ${hhmm(start)}–${hhmm(end)}</b>`
-    + `<span>${old ? '⚠ 已超過 2 小時沒有新資料（可能是官方延遲或自動更新故障），價格可能已過時' : `這一小時的成交彙總；下一小時的資料預計 ${hhmm(next)} 後出現`}`
+    + `<span>${old ? '⚠ 已超過 2 小時沒有新資料（可能是官方延遲或自動更新故障），價格可能已過時' : `此時段的成交彙總；下一個時段（${hhmm(end)}–${hhmm(new Date(D.updated + 3600e3))}）預計 ${hhmm(next)} 後出現`}`
     + `${D.generated ? ` · 雲端抓取 ${hhmm(new Date(D.generated))}` : ''} · 本頁檢查 ${hhmm(new Date(lastCheck))}（每 2 分鐘自動檢查）</span>`
 }
 let lastCheck = Date.now() // 本頁最後一次檢查新資料的時間
 function paint() {
   chaos = D.items.find(i => i.en === 'Chaos Orb'); divine = D.items.find(i => i.en === 'Divine Orb')
   $('league').textContent = D.league
-  $('rate').innerHTML = `${img(divine)} 1 = <b>${fmt(D.divinePrice)}</b> ${img(chaos)} <small style="color:var(--muted);font-size:13px">（該小時成交 ${fmt(D.divineRange[0])}–${fmt(D.divineRange[1])}）</small>`
-  $('meta').textContent = `價格是遊戲內通貨交換的實際成交均價：混沌石價、神聖石價各自來自實際成交，不互相換算。`
-    + `價格灰色＝不是資料時間那一小時的成交（較舊，點開可看是幾小時前）；「售完」＝資料時間那一小時沒人在賣；「無成交」＝${D.hours} 小時內沒有成交，所以沒有價格。分類與順序照遊戲。`
+  $('rate').innerHTML = `${img(divine)} 1 = <b>${fmt(D.divinePrice)}</b> ${img(chaos)} <small style="color:var(--muted);font-size:13px">（${span(0)} 成交區間 ${fmt(D.divineRange[0])}～${fmt(D.divineRange[1])}）</small>`
+  $('meta').textContent = `價格是遊戲內通貨交換的實際成交均價，混沌石價和神聖石價各自來自實際成交，不互相換算。`
+    + `價格呈灰色：成交時段早於資料時間，點開可看是哪個時段。「售完」：資料時間內沒有人在賣。「無成交」：${D.hours} 小時內沒有成交，因此沒有價格。分類與順序與遊戲相同。`
   const chips = ['所有', '熱門', ...D.cats]
   if (!chips.includes(cat)) cat = '所有'
   $('chips').innerHTML = chips.map(c => `<button class="chip" data-cat="${esc(c)}" aria-pressed="${c === cat}"><span class="ic">${catIcon(c).map(src => `<img src="${src}" alt="">`).join('')}</span>${esc(c)}</button>`).join('')
@@ -184,8 +193,8 @@ function poll() {
 setInterval(poll, 120e3)
 document.addEventListener('visibilitychange', () => { if (!document.hidden) poll() })
 $('q').oninput = render
-// 顯示範圍：全部（照遊戲完整列出）／有成交價（24h 內有成交）／近一小時在售（有成交價，且資料時間那一小時有人在賣；不保證現在仍有貨）；記住選擇
-const MODES = { all: '全部', traded: '有成交價', buyable: '近一小時在售' }
+// 顯示範圍：全部（照遊戲完整列出）／有成交價（24 小時內有成交）／近 1 小時在售（有成交價，且資料時間內有人在賣；不保證現在仍有貨）；記住選擇
+const MODES = { all: '全部', traded: '有成交價', buyable: '近 1 小時在售' }
 const buyable = it => !it.noTrade && [it.chaos, it.divine].some(q => q && !q.soldOut)
 const inMode = (it, m) => m === 'all' || (m === 'traded' ? !it.noTrade : buyable(it))
 let mode = 'all'
@@ -203,32 +212,34 @@ document.addEventListener('toggle', e => { if (e.target.open) for (const d of do
 document.addEventListener('click', e => { if (!e.target.closest('details.card')) for (const d of document.querySelectorAll('details.card[open]')) d.open = false })
 
 const unit = { get chaos() { return ['混沌石', chaos] }, get divine() { return ['神聖石', divine] } }
-const range = ([a, b]) => a === b ? fmt(a) : `${fmt(a)}–${fmt(b)}`
-const num = ([a, b]) => a === b ? a.toLocaleString() : `${a.toLocaleString()}–${b.toLocaleString()}`
+const range = ([a, b]) => a === b ? fmt(a) : `${fmt(a)}～${fmt(b)}`
+const num = ([a, b]) => a === b ? a.toLocaleString() : `${a.toLocaleString()}～${b.toLocaleString()}`
 // 卡片上只放價格；比例、成交量、在售量收在展開區
-const px = (q, k) => q ? `<span class="${q.soldOut ? 'out' : q.ago ? 'stale' : ''}" title="${unit[k][0]}${q.soldOut ? '（資料時間那一小時沒人在賣）' : q.ago ? `（約 ${q.ago} 小時前的成交）` : ''}">${img(unit[k][1])}${fmt(q.price)}</span>` : `<span class="na" title="24 小時內沒有${unit[k][0]}成交">${img(unit[k][1])}—</span>`
-// 不到 1 個通貨的物品倒過來寫成「1 通貨買幾個」，不用自己換算。
-// 價格、區間、成交量都來自「價格那一小時」（可能比資料時間早）；在售／售完則是資料時間那一小時的狀況，兩者分開寫清楚
+const px = (q, k) => q ? `<span class="${q.soldOut ? 'out' : q.ago ? 'stale' : ''}" title="${unit[k][0]}價${q.soldOut ? `（${span(0)} 沒有人在賣）` : q.ago ? `（${span(q.ago)} 的成交）` : ''}">${img(unit[k][1])}${fmt(q.price)}</span>` : `<span class="na" title="24 小時內沒有${unit[k][0]}成交">${img(unit[k][1])}—</span>`
+// 展開區：每種通貨一個小表格（均價／區間／成交／在售）。
+// 均價、區間、成交量來自「最近一次有成交的時段」（可能早於資料時間）；在售是資料時間的狀況，各自標出時段。
+// 不到 1 個通貨的物品寫成「1 混沌石 = N 個」，不用自己換算
 const detail = (q, k, it) => {
   const [u] = unit[k]
-  if (!q) return it === unit[k][1] ? "" : `<div><b>${u}</b>：24 小時內沒有成交</div>`
-  const when = q.ago ? `約 ${q.ago} 小時前那一小時` : '資料時間那一小時'
-  const price = q.price < 1
-    ? `成交均價：1 ${u} 買 ${fmt(1 / q.price)} 個<br>成交區間：1 ${u} 買 ${range([1 / q.range[1], 1 / q.range[0]])} 個`
-    : `成交均價：1 個 = ${fmt(q.price)} ${u}<br>成交區間：1 個 = ${range(q.range)} ${u}`
-  const stock = q.soldOut ? '<span class="warn">資料時間那一小時沒人在賣（售完）</span>' : `資料時間那一小時在售 ${num(q.stock)} 個${q.stock[0] !== q.stock[1] ? '（這一小時內最少～最多）' : ''}`
-  return `<div><b>${u}</b>（${when}的成交）<br>${price}<br>成交 ${q.vol[0].toLocaleString()} 個<br>${stock}</div>`
+  if (!q) return it === unit[k][1] ? '' : `<div class="none"><b>${u}價</b>：24 小時內沒有成交</div>`
+  const cheap = q.price < 1
+  const avg = cheap ? `1 ${u} = ${fmt(1 / q.price)} 個` : `1 個 = ${fmt(q.price)} ${u}`
+  const rng = cheap ? `1 ${u} = ${range([1 / q.range[1], 1 / q.range[0]])} 個` : `${range(q.range)} ${u}`
+  const stock = q.soldOut ? `<span class="warn">0 個（${spanH(0)} 沒有人在賣）</span>`
+    : q.stock[0] === q.stock[1] ? `${num(q.stock)} 個（${spanH(0)}）` : `${num(q.stock)} 個（${spanH(0)} 期間最少～最多）`
+  return `<div><b>${u}價</b><dl><dt>均價</dt><dd>${avg}</dd><dt>區間</dt><dd>${rng}</dd>`
+    + `<dt>成交</dt><dd>${q.vol[0].toLocaleString()} 個（${spanH(q.ago)}）</dd><dt>在售</dt><dd>${stock}</dd></dl></div>`
 }
 const key = it => it.noTrade ? -1 : it.chaos?.price ?? it.divine.price * D.divinePrice // 只用來排序，無成交排最後
 const soldOut = it => !it.noTrade && [it.chaos, it.divine].filter(Boolean).every(q => q.soldOut)
 // 24 小時沒有成交的物品：照遊戲位置顯示，但沒有價格（官方資料沒有成交價，不做推算）
 //   有人在賣（listing）的顯示在售數量：買得到，但要進遊戲看開價
-const stockText = it => [['chaos', '混沌'], ['divine', '神聖']].filter(([k]) => it.listing[k]).map(([k, u]) => `${u}交易對 ${num(it.listing[k])} 個`).join('、')
+const stockText = it => [['chaos', '混沌石'], ['divine', '神聖石']].filter(([k]) => it.listing[k]).map(([k, u]) => `用${u}交易 ${num(it.listing[k])} 個`).join('、')
 const noTradeCard = it => `<details class="card notrade${it.listing ? ' listed' : ''}">
-      <summary>${img(it, '')}<div class="nm" title="${esc(it.name)}">${esc(it.name)}</div><div class="px"><span class="na">${it.listing ? `在售 ${Math.max(...Object.values(it.listing).filter(Boolean).map(s => s[1])).toLocaleString()}・無成交價` : '24h 無成交'}</span></div></summary>
+      <summary>${img(it, '')}<div class="nm" title="${esc(it.name)}">${esc(it.name)}</div><div class="px"><span class="na">${it.listing ? `在售 ${Math.max(...Object.values(it.listing).filter(Boolean).map(s => s[1])).toLocaleString()}・無成交價` : '24 小時無成交'}</span></div></summary>
       <div class="more"><div>${esc(it.en ?? '')}</div><div>${it.listing
-        ? `資料時間那一小時有人在賣（${stockText(it)}），但最近 24 小時沒有成交。官方資料只有成交價、沒有掛單開價，開價請進遊戲通貨交換查看。`
-        : '最近 24 小時在通貨交換沒有任何成交，官方資料沒有成交價，所以不顯示價格。'}</div></div></details>`
+        ? `<dl><dt>在售</dt><dd>${stockText(it)}（${spanH(0)}）</dd><dt>成交</dt><dd>24 小時內沒有成交</dd></dl>官方資料只有成交價、沒有掛單開價，開價請進遊戲的通貨交換查看。`
+        : '24 小時內在通貨交換沒有任何成交。官方資料只提供成交價，因此沒有價格可顯示。'}</div></div></details>`
 const card = it => it.noTrade ? noTradeCard(it) : `<details class="card${soldOut(it) ? ' soldout' : ''}">
       <summary>${img(it, '')}<div class="nm" title="${esc(it.name)}">${esc(it.name)}${soldOut(it) ? '<span class="tag">售完</span>' : ''}</div><div class="px">${px(it.chaos, 'chaos')}${px(it.divine, 'divine')}</div></summary>
       <div class="more"><div>${esc(it.en ?? '')}</div>${detail(it.chaos, 'chaos', it)}${detail(it.divine, 'divine', it)}</div></details>`
