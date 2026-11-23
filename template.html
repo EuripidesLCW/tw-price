@@ -26,13 +26,17 @@
   --bg: #f6f4ef; --panel: #fffdf8; --line: #e4dfd3; --text: #2a2620; --muted: #8a8172;
   --accent: #a8641c; --accent-soft: #f3e4cf; --good: #3f7d4e; --stale: #b0a796;
 }
-.theme { position: relative; flex: none; width: 60px; height: 30px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); cursor: pointer; padding: 0; }
+/* 主題開關：圖示框和圓鈕同樣大小、同樣位置（左 3px／右 3px，24×24），所以圖示一定在圓鈕正中心 */
+.theme { position: relative; flex: none; width: 58px; height: 32px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); cursor: pointer; padding: 0; }
 .theme:hover { border-color: var(--accent); }
-.theme .ic { position: absolute; z-index: 1; top: 50%; transform: translateY(-50%); font-size: 14px; line-height: 1; color: var(--muted); }
-.theme .sun { left: 7px; } .theme .moon { right: 8px; }
-.theme .knob { position: absolute; z-index: 0; top: 3px; left: 33px; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); transition: left .2s; }
+.theme:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.theme .knob, .theme .ic { position: absolute; top: 3px; width: 24px; height: 24px; border-radius: 50%; }
+.theme .knob { left: 29px; background: var(--accent); box-shadow: 0 1px 3px rgb(0 0 0 / .35); transition: left .2s ease; }
 :root[data-theme="light"] .theme .knob { left: 3px; }
-/* 圓鈕所在那一側的圖示＝目前模式，顯示在圓鈕上 */
+.theme .ic { z-index: 1; display: grid; place-items: center; color: var(--muted); transition: color .2s; }
+.theme .ic svg { width: 14px; height: 14px; }
+.theme .sun { left: 3px; } .theme .moon { right: 3px; }
+/* 圓鈕所在那一側＝目前模式，圖示改深色顯示在圓鈕上 */
 :root:not([data-theme="light"]) .theme .moon, :root[data-theme="light"] .theme .sun { color: #1a1408; }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif; }
@@ -55,15 +59,32 @@ h1 small { font-size: 15px; color: var(--muted); font-weight: 400; margin-left: 
 .toast { position: fixed; right: 16px; bottom: 16px; z-index: 9; background: var(--accent); color: #1a1408; padding: 8px 14px; border-radius: 8px; font-weight: 600; opacity: 0; transform: translateY(8px); transition: .3s; pointer-events: none; }
 .toast.show { opacity: 1; transform: none; }
 .bar { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 10px 0; display: flex; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid var(--line); }
-.bar input { flex: 1 1 220px; min-width: 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); font: inherit; }
+.search { position: relative; flex: 1 1 220px; min-width: 0; display: flex; }
+.bar input { flex: 1; min-width: 0; padding: 8px 40px 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); font: inherit; }
 .bar input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.bar input::-webkit-search-cancel-button { -webkit-appearance: none; display: none; } /* 用自己的清除鈕，各瀏覽器一致 */
+.clear { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 28px; height: 28px; border: 0; border-radius: 50%; background: var(--line); color: var(--text); display: grid; place-items: center; cursor: pointer; padding: 0; }
+.clear[hidden] { display: none; }
+.clear:hover { background: var(--accent); color: #1a1408; }
+.clear svg { width: 12px; height: 12px; }
+.ftoggle { display: none; }
 .chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; width: 100%; }
 .chip { border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 8px; height: 38px; padding: 0 10px 0 6px; font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px; text-align: left; white-space: nowrap; overflow: hidden; }
 .chip .ic { width: 50px; flex: none; display: flex; justify-content: center; gap: 2px; }
 .chip img { width: 24px; height: 24px; object-fit: contain; }
 .chip:hover { border-color: var(--accent); background: var(--accent-soft); }
 .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #1a1408; font-weight: 700; }
-@media (max-width: 600px) { .bar { position: static; } .chips { grid-template-columns: repeat(3, 1fr); } .chip { font-size: 13px; height: 34px; padding: 0 6px 0 2px; gap: 3px; } .chip .ic { width: 24px; } .chip img { width: 20px; height: 20px; } .chip img + img { display: none; } }
+@media (max-width: 600px) {
+  .bar input { font-size: 16px; }
+  .bar.compact { flex-wrap: nowrap; padding: 8px 0; box-shadow: 0 6px 12px rgb(0 0 0 / .25); }
+  .bar.compact .search { flex: 1 1 0; }
+  .bar.compact .ftoggle { display: flex; align-items: center; gap: 4px; flex: none; max-width: 46%; padding: 0 10px; border: 1px solid var(--accent); border-radius: 8px; background: var(--accent-soft); color: var(--accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar.compact .seg, .bar.compact .chips { display: none; }
+  .bar.compact.open { flex-wrap: wrap; max-height: 85vh; overflow-y: auto; }
+  .bar.compact.open .seg { display: flex; }
+  .bar.compact.open .chips { display: grid; }
+}
+@media (max-width: 600px) { .chips { grid-template-columns: repeat(3, 1fr); } .chip { font-size: 13px; height: 34px; padding: 0 6px 0 2px; gap: 3px; } .chip .ic { width: 24px; } .chip img { width: 20px; height: 20px; } .chip img + img { display: none; } }
 section { margin-top: 22px; }
 h2 { font-size: 15px; margin: 0 0 8px; color: var(--accent); font-weight: 600; display: flex; gap: 8px; align-items: baseline; }
 h2 span { color: var(--muted); font-weight: 400; font-size: 13px; }
@@ -120,12 +141,18 @@ h3::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
 <div class="wrap">
   <header>
     <h1>台服通貨價格<small id="league"></small></h1>
-    <div class="rate"><span id="rate"></span><button class="theme" id="theme" type="button" role="switch"><span class="ic sun">☀</span><span class="ic moon">☾</span><span class="knob"></span></button></div>
+    <div class="rate"><span id="rate"></span><button class="theme" id="theme" type="button" role="switch"><span class="knob"></span><span class="ic sun"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2" fill="currentColor" stroke="none"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg></span><span class="ic moon"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.5 14.6A8.5 8.5 0 0 1 9.4 3.5a.6.6 0 0 0-.8-.7A9.5 9.5 0 1 0 21.2 15.4a.6.6 0 0 0-.7-.8z"/></svg></span></button></div>
     <div class="stamp" id="stamp"></div>
     <div class="meta" id="meta"></div>
   </header>
-  <div class="bar">
-    <input id="q" type="search" placeholder="搜尋物品名稱（中文或英文）" autocomplete="off">
+  <div id="barTop"></div>
+  <div class="bar" id="bar">
+    <div class="search">
+      <input id="q" type="search" placeholder="搜尋物品名稱（中文或英文）" autocomplete="off" enterkeyhint="search">
+      <button class="clear" id="clear" type="button" aria-label="清除搜尋文字" title="清除" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+    </div>
+    <!-- 手機往下滑後，篩選收成這顆按鈕；點開展開分類與顯示範圍 -->
+    <button class="ftoggle" id="ftoggle" type="button" aria-expanded="false"></button>
     <div class="seg" id="only" role="group" aria-label="顯示範圍"></div>
     <div class="chips" id="chips"></div>
   </div>
@@ -176,7 +203,7 @@ function paint() {
   $('chips').innerHTML = chips.map(c => `<button class="chip" data-cat="${esc(c)}" aria-pressed="${c === cat}"><span class="ic">${catIcon(c).map(src => `<img src="${src}" alt="">`).join('')}</span>${esc(c)}</button>`).join('')
   stamp()
 }
-$('chips').onclick = e => { const t = e.target.closest('.chip'); if (t) { cat = t.dataset.cat; for (const b of $('chips').children) b.setAttribute('aria-pressed', b === t); render() } }
+$('chips').onclick = e => { const t = e.target.closest('.chip'); if (t) { cat = t.dataset.cat; for (const b of $('chips').children) b.setAttribute('aria-pressed', b === t); render(); picked() } }
 // 自動更新：每 2 分鐘重新載入 data.js（GitHub 雲端每 20 分鐘重新產生）。
 // 用「產生時間」比對：同一小時但內容改過（例如版面更新）也會換上；有新的小時才跳提示
 function poll() {
@@ -200,7 +227,28 @@ function poll() {
 }
 setInterval(poll, 120e3)
 document.addEventListener('visibilitychange', () => { if (!document.hidden) poll() })
-$('q').oninput = render
+// 搜尋：有文字才顯示 ✕；按 ✕ 清空並把游標留在搜尋框
+$('q').oninput = () => { $('clear').hidden = !$('q').value; render() }
+$('clear').onclick = () => { $('q').value = ''; $('clear').hidden = true; render(); $('q').focus() }
+
+// 手機：篩選列在頁首捲出畫面後變成精簡列（搜尋框＋篩選按鈕）固定在上方；點按鈕展開，選完自動收起並回到清單開頭
+const mobile = matchMedia('(max-width: 600px)')
+function compactCheck() {
+  const compact = mobile.matches && $('barTop').getBoundingClientRect().top < 0 // 篩選列原本的位置已捲出畫面
+  if (compact === $('bar').classList.contains('compact')) return
+  $('bar').classList.toggle('compact', compact)
+  if (!compact) setOpen(false)
+}
+addEventListener('scroll', compactCheck, { passive: true })
+mobile.addEventListener('change', compactCheck)
+function setOpen(open) { $('bar').classList.toggle('open', open); $('ftoggle').setAttribute('aria-expanded', String(open)); ftoggleText() }
+const ftoggleText = () => { $('ftoggle').textContent = `${cat}・${MODES[mode]} ${$('bar').classList.contains('open') ? '▴' : '▾'}` }
+$('ftoggle').onclick = () => setOpen(!$('bar').classList.contains('open'))
+function picked() {
+  if (!$('bar').classList.contains('open')) return
+  setOpen(false)
+  scrollTo({ top: $('list').getBoundingClientRect().top + scrollY - $('bar').offsetHeight - 8 })
+}
 // 顯示範圍：全部（照遊戲完整列出）／有成交價（24 小時內有成交）／近 1 小時在售（有成交價，且資料時間內有人在賣；不保證現在仍有貨）；記住選擇
 const MODES = { all: '全部', traded: '有成交價', buyable: '近 1 小時在售' }
 const buyable = it => !it.noTrade && [it.chaos, it.divine].some(q => q && !q.soldOut)
@@ -213,7 +261,7 @@ const segPaint = (items = D.items) => { // 數字 = 目前分類／搜尋範圍�
 }
 $('only').onclick = e => {
   const b = e.target.closest('button'); if (!b) return
-  mode = b.dataset.mode; render()
+  mode = b.dataset.mode; render(); picked()
   try { localStorage.setItem('mode', mode) } catch {}
 }
 document.addEventListener('toggle', e => { if (e.target.open) for (const d of document.querySelectorAll('details.card[open]')) if (d !== e.target) d.open = false }, true)
@@ -280,6 +328,7 @@ function render() {
     : D.cats.filter(c => cat === '所有' || c === cat).map(c => tab(c, shown.filter(i => i.cat === c))).join('')
   $('list').innerHTML = html || '<p class="empty">找不到符合的物品</p>'
   segPaint(items)
+  ftoggleText()
   fit()
 }
 // 依清單寬度算出欄數與欄寬（卡片最小 200px，手機 150px），所有分組共用 → 上下對齊
