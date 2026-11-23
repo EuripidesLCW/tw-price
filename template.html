@@ -26,16 +26,24 @@
   --bg: #f6f4ef; --panel: #fffdf8; --line: #e4dfd3; --text: #2a2620; --muted: #8a8172;
   --accent: #a8641c; --accent-soft: #f3e4cf; --good: #3f7d4e; --stale: #b0a796;
 }
-.theme { margin-left: 4px; border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 8px; height: 32px; padding: 0 10px; font: inherit; font-size: 13px; cursor: pointer; }
+.theme { position: relative; flex: none; width: 60px; height: 30px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); cursor: pointer; padding: 0; }
 .theme:hover { border-color: var(--accent); }
+.theme .ic { position: absolute; z-index: 1; top: 50%; transform: translateY(-50%); font-size: 14px; line-height: 1; color: var(--muted); }
+.theme .sun { left: 7px; } .theme .moon { right: 8px; }
+.theme .knob { position: absolute; z-index: 0; top: 3px; left: 33px; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); transition: left .2s; }
+:root[data-theme="light"] .theme .knob { left: 3px; }
+/* 圓鈕所在那一側的圖示＝目前模式，顯示在圓鈕上 */
+:root:not([data-theme="light"]) .theme .moon, :root[data-theme="light"] .theme .sun { color: #1a1408; }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif; }
 .wrap { max-width: 1240px; margin: 0 auto; padding: 28px 16px 64px; }
 header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 24px; margin-bottom: 20px; }
 h1 { margin: 0; font-size: 26px; letter-spacing: .04em; }
 h1 small { font-size: 15px; color: var(--muted); font-weight: 400; margin-left: 8px; letter-spacing: 0; }
-.rate { display: flex; align-items: center; gap: 6px; font-size: 18px; font-variant-numeric: tabular-nums; }
-#rate { display: flex; align-items: center; gap: 6px; }
+.rate { display: flex; align-items: center; gap: 12px; font-size: 18px; font-variant-numeric: tabular-nums; }
+#rate { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; }
+#rate .pair { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+#rate small { color: var(--muted); font-size: 13px; }
 .rate b { color: var(--accent); }
 .meta { width: 100%; color: var(--muted); font-size: 13px; }
 .stamp { width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 10px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; font-size: 14px; }
@@ -112,7 +120,7 @@ h3::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
 <div class="wrap">
   <header>
     <h1>台服通貨價格<small id="league"></small></h1>
-    <div class="rate"><span id="rate"></span><button class="theme" id="theme" type="button"></button></div>
+    <div class="rate"><span id="rate"></span><button class="theme" id="theme" type="button" role="switch"><span class="ic sun">☀</span><span class="ic moon">☾</span><span class="knob"></span></button></div>
     <div class="stamp" id="stamp"></div>
     <div class="meta" id="meta"></div>
   </header>
@@ -160,7 +168,7 @@ let lastCheck = Date.now() // 本頁最後一次檢查新資料的時間
 function paint() {
   chaos = D.items.find(i => i.en === 'Chaos Orb'); divine = D.items.find(i => i.en === 'Divine Orb')
   $('league').textContent = D.league
-  $('rate').innerHTML = `${img(divine)} 1 = <b>${fmt(D.divinePrice)}</b> ${img(chaos)} <small style="color:var(--muted);font-size:13px">（${span(0)} 成交區間 ${fmt(D.divineRange[0])}～${fmt(D.divineRange[1])}）</small>`
+  $('rate').innerHTML = `<span class="pair">${img(divine)} 1 = <b>${fmt(D.divinePrice)}</b> ${img(chaos)}</span><small>${span(0)} 成交區間 ${fmt(D.divineRange[0])}～${fmt(D.divineRange[1])}</small>`
   $('meta').textContent = `價格是遊戲內通貨交換的實際成交均價，混沌石價和神聖石價各自來自實際成交，不互相換算。`
     + `價格呈灰色：成交時段早於資料時間，點開可看是哪個時段。「售完」：資料時間內沒有人在賣。「無成交」：${D.hours} 小時內沒有成交，因此沒有價格。分類與順序與遊戲相同。`
   const chips = ['所有', '熱門', ...D.cats]
@@ -281,7 +289,13 @@ function fit() {
   document.documentElement.style.setProperty('--cw', Math.floor((w - gap * (cols - 1)) / cols * 100) / 100 + 'px')
   for (const g of document.querySelectorAll('.grp')) g.style.setProperty('--k', Math.min(+g.style.getPropertyValue('--n'), cols)) // 每組佔幾欄
 }
-const themeBtn = () => { $('theme').textContent = document.documentElement.dataset.theme === 'light' ? '🌙 切換深色' : '☀ 切換淺色' }
+// 開關沒有文字，用 aria 屬性告訴讀屏軟體目前狀態與作用
+const themeBtn = () => {
+  const light = document.documentElement.dataset.theme === 'light'
+  $('theme').setAttribute('aria-checked', String(!light))
+  $('theme').setAttribute('aria-label', light ? '目前淺色，切換為深色' : '目前深色，切換為淺色')
+  $('theme').title = light ? '切換為深色' : '切換為淺色'
+}
 $('theme').onclick = () => {
   const light = document.documentElement.dataset.theme !== 'light'
   if (light) document.documentElement.dataset.theme = 'light'; else delete document.documentElement.dataset.theme
