@@ -339,13 +339,21 @@ function tab(c, rows) {
   if (!rows.length) return ''
   const gs = D.groups[c]
   if (!gs) return section(c, rows.sort((a, b) => key(b) - key(a)), c)
-  const single = gs.length === 1 && rows.every(i => i.group === gs[0]) // 只有一個小分類：排序選單放在頁標題旁
+  // 分類層級排序（key = @分類）：選了價格排序 → 不分小分類，整個分類一起排；「依小分類」→ 照遊戲的小分類排列
+  const tk = '@' + c
+  const single = gs.length === 1 && rows.every(i => i.group === gs[0]) // 只有一個小分類：不重複顯示小分類標題與選單
+  const head = `<h2>${esc(c)}<span>${rows.length} 種</span>${sortCtl(tk, single ? '遊戲順序' : '依小分類')}</h2>`
+  const gi = g => g == null ? gs.length : gs.indexOf(g)
+  if ((sorts[tk] || 'game') !== 'game') {
+    const flat = [...rows].sort((a, b) => gi(a.group) - gi(b.group) || (a.ord ?? 0) - (b.ord ?? 0)) // 先照遊戲順序，價格相同或沒價格時保持此順序
+    return `<section>${head}${grid(applySort(flat, tk))}</section>`
+  }
   const parts = [...gs, null].map(g => {
     const k = c + '|' + (g ?? '其他')
     const r = applySort(rows.filter(i => (i.group ?? null) === g).sort((a, b) => g ? a.ord - b.ord : key(b) - key(a)), k)
     return r.length ? `<div class="grp" style="--n:${r.length}">${single ? '' : `<h3>${esc(g ?? '其他')}<small>${r.length}</small>${sortCtl(k)}</h3>`}${grid(r)}</div>` : ''
   }).join('')
-  return `<section><h2>${esc(c)}<span>${rows.length} 種</span>${single ? sortCtl(c + '|' + gs[0]) : ''}</h2><div class="grps">${parts}</div></section>`
+  return `<section>${head}<div class="grps">${parts}</div></section>`
 }
 // 目前分類＋搜尋字範圍內的物品（顯示範圍按鈕的數字也用它算）
 // 熱門的計算範圍：近 1 小時（預設，最貼近目前市場）／近 24 小時（主流、較穩定）；記住選擇
