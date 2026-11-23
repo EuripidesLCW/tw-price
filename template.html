@@ -178,13 +178,13 @@ const buyable = it => !it.noTrade && [it.chaos, it.divine].some(q => q && !q.sol
 const inMode = (it, m) => m === 'all' || (m === 'traded' ? !it.noTrade : buyable(it))
 let mode = 'all'
 try { mode = MODES[localStorage.getItem('mode')] ? localStorage.getItem('mode') : 'all' } catch {}
-const segPaint = () => {
+const segPaint = (items = D.items) => { // 數字 = 目前分類／搜尋範圍內各模式的數量
   $('only').innerHTML = Object.entries(MODES).map(([k, label]) =>
-    `<button type="button" data-mode="${k}" aria-pressed="${k === mode}">${label}<small>${D.items.filter(i => inMode(i, k)).length}</small></button>`).join('')
+    `<button type="button" data-mode="${k}" aria-pressed="${k === mode}">${label}<small>${items.filter(i => inMode(i, k)).length}</small></button>`).join('')
 }
 $('only').onclick = e => {
   const b = e.target.closest('button'); if (!b) return
-  mode = b.dataset.mode; segPaint(); render()
+  mode = b.dataset.mode; render()
   try { localStorage.setItem('mode', mode) } catch {}
 }
 segPaint()
@@ -232,14 +232,22 @@ function tab(c, rows) {
   }).join('')
   return `<section><h2>${esc(c)}<span>${rows.length} 種</span></h2><div class="grps">${parts}</div></section>`
 }
-function render() {
+// 目前分類＋搜尋字範圍內的物品（顯示範圍按鈕的數字也用它算）
+function scope() {
   const q = $('q').value.trim().toLowerCase()
-  const hit = it => inMode(it, mode) && (!q || it.name.toLowerCase().includes(q) || it.en?.toLowerCase().includes(q))
+  const match = it => !q || it.name.toLowerCase().includes(q) || it.en?.toLowerCase().includes(q)
   const byId = new Map(D.items.map(i => [i.id, i]))
+  const base = cat === '熱門' ? D.hot.map(id => byId.get(id)).filter(Boolean)
+    : D.items.filter(i => cat === '所有' ? D.cats.includes(i.cat) : i.cat === cat)
+  return base.filter(match)
+}
+function render() {
+  const items = scope(), shown = items.filter(it => inMode(it, mode))
   const html = cat === '熱門'
-    ? section('熱門（24 小時成交總值前 30）', D.hot.map(id => byId.get(id)).filter(hit))
-    : D.cats.filter(c => cat === '所有' || c === cat).map(c => tab(c, D.items.filter(i => i.cat === c && hit(i)))).join('')
+    ? section('熱門（24 小時成交總值前 30）', shown)
+    : D.cats.filter(c => cat === '所有' || c === cat).map(c => tab(c, shown.filter(i => i.cat === c))).join('')
   $('list').innerHTML = html || '<p class="empty">找不到符合的物品</p>'
+  segPaint(items)
   fit()
 }
 // 依清單寬度算出欄數與欄寬（卡片最小 200px，手機 150px），所有分組共用 → 上下對齊
