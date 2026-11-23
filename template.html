@@ -63,15 +63,14 @@ h3 { font-size: 15px; font-weight: 600; color: var(--text); margin: 18px 0 8px; 
 h3::before { content: ""; width: 4px; height: 16px; border-radius: 2px; background: var(--accent); flex: none; }
 h3 small { font-size: 12px; font-weight: 400; color: var(--muted); }
 h3::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
-:root { --cols: 5; --cw: 200px; --gap: 8px; }
+:root { --cw: 200px; --gap: 8px; }
 .grps { display: flex; flex-wrap: wrap; column-gap: var(--gap); }
 .grp { flex: none; min-width: 0; width: calc(var(--k, 1) * (var(--cw) + var(--gap)) - var(--gap)); }
 .grp .grid { grid-template-columns: repeat(var(--k, 1), var(--cw)); }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, var(--cw)); gap: var(--gap); align-items: stretch; }
-.card summary { height: 100%; }
 .card { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; font-variant-numeric: tabular-nums; }
 .card[open] { border-color: var(--accent); z-index: 3; border-radius: 10px 10px 0 0; }
-.card summary { list-style: none; cursor: pointer; padding: 8px 10px; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 2px 8px; align-items: center; }
+.card summary { height: 100%; list-style: none; cursor: pointer; padding: 8px 10px; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 2px 8px; align-items: center; }
 .card summary::-webkit-details-marker { display: none; }
 .card summary:hover { background: var(--accent-soft); border-radius: 10px; }
 .card summary > img { width: 34px; height: 34px; object-fit: contain; grid-row: span 2; }
@@ -150,15 +149,14 @@ function paint() {
   chaos = D.items.find(i => i.en === 'Chaos Orb'); divine = D.items.find(i => i.en === 'Divine Orb')
   $('league').textContent = D.league
   $('rate').innerHTML = `${img(divine)} 1 = <b>${fmt(D.divinePrice)}</b> ${img(chaos)} <small style="color:var(--muted);font-size:13px">（成交 ${fmt(D.divineRange[0])}–${fmt(D.divineRange[1])}）</small>`
-  $('meta').textContent = `遊戲內通貨交換的實際成交價：混沌石價、神聖石價各自取自該交易對最近一次有成交的小時（不互相換算），列出 ${D.hours} 小時內有成交的物品，最新一小時沒人在賣的標「售完」`
+  $('meta').textContent = `遊戲內通貨交換的實際成交價：混沌石價、神聖石價各自取自該交易對最近一次有成交的小時（不互相換算）。分類與順序照遊戲；${D.hours} 小時內沒成交的標「無成交」、資料時間那一小時沒人賣的標「售完」`
   const chips = ['所有', '熱門', ...D.cats]
   if (!chips.includes(cat)) cat = '所有'
   $('chips').innerHTML = chips.map(c => `<button class="chip" data-cat="${esc(c)}" aria-pressed="${c === cat}"><span class="ic">${catIcon(c).map(src => `<img src="${src}" alt="">`).join('')}</span>${esc(c)}</button>`).join('')
   stamp()
-  if (typeof segPaint === "function") segPaint()
 }
 $('chips').onclick = e => { const t = e.target.closest('.chip'); if (t) { cat = t.dataset.cat; for (const b of $('chips').children) b.setAttribute('aria-pressed', b === t); render() } }
-// 自動更新：每 2 分鐘重新載入 data.js（雲端每 20 分鐘重新產生）。
+// 自動更新：每 2 分鐘重新載入 data.js（GitHub 雲端每 20 分鐘重新產生）。
 // 用「產生時間」比對：同一小時但內容改過（例如版面更新）也會換上；有新的小時才跳提示
 function poll() {
   const s = document.createElement('script')
@@ -196,7 +194,6 @@ $('only').onclick = e => {
   mode = b.dataset.mode; render()
   try { localStorage.setItem('mode', mode) } catch {}
 }
-segPaint()
 document.addEventListener('toggle', e => { if (e.target.open) for (const d of document.querySelectorAll('details.card[open]')) if (d !== e.target) d.open = false }, true)
 document.addEventListener('click', e => { if (!e.target.closest('details.card')) for (const d of document.querySelectorAll('details.card[open]')) d.open = false })
 
@@ -221,7 +218,7 @@ const soldOut = it => !it.noTrade && [it.chaos, it.divine].filter(Boolean).every
 //   有人在賣（listing）的顯示在售數量：買得到，但要進遊戲看開價
 const stockText = it => [['chaos', '混沌'], ['divine', '神聖']].filter(([k]) => it.listing[k]).map(([k, u]) => `${u}交易對 ${num(it.listing[k])} 個`).join('、')
 const noTradeCard = it => `<details class="card notrade${it.listing ? ' listed' : ''}">
-      <summary>${img(it, '')}<div class="nm" title="${esc(it.name)}">${esc(it.name)}</div><div class="px"><span class="na">${it.listing ? `在售 ${num([Math.max(...Object.values(it.listing).filter(Boolean).map(s => s[1])), Math.max(...Object.values(it.listing).filter(Boolean).map(s => s[1]))])}・無成交價` : '24h 無成交'}</span></div></summary>
+      <summary>${img(it, '')}<div class="nm" title="${esc(it.name)}">${esc(it.name)}</div><div class="px"><span class="na">${it.listing ? `在售 ${Math.max(...Object.values(it.listing).filter(Boolean).map(s => s[1])).toLocaleString()}・無成交價` : '24h 無成交'}</span></div></summary>
       <div class="more"><div>${esc(it.en ?? '')}</div><div>${it.listing
         ? `近一小時有人在賣（${stockText(it)}），但最近 24 小時沒有成交。官方資料只有成交價、沒有掛單開價，開價請進遊戲通貨交換查看。`
         : '最近 24 小時在通貨交換沒有任何成交，官方資料沒有成交價，所以不顯示價格。'}</div></div></details>`
@@ -263,7 +260,6 @@ function render() {
 function fit() {
   const w = $('list').clientWidth, gap = 8, min = innerWidth <= 600 ? 150 : 200
   const cols = Math.max(1, Math.floor((w + gap) / (min + gap)))
-  document.documentElement.style.setProperty('--cols', cols)
   document.documentElement.style.setProperty('--cw', Math.floor((w - gap * (cols - 1)) / cols * 100) / 100 + 'px')
   for (const g of document.querySelectorAll('.grp')) g.style.setProperty('--k', Math.min(+g.style.getPropertyValue('--n'), cols)) // 每組佔幾欄
 }

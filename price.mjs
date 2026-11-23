@@ -1,6 +1,7 @@
 // 台服通貨價格表：抓遊戲內「通貨交換」公開的每小時成交摘要（webtw.poecdn.com），
-// 算出最近 24 小時各物品的成交均價（以混沌石計），產生 index.html 並開啟
-// 用法：node price.mjs [聯盟名稱]   預設為交易量最大的非標準聯盟
+// 算出各物品的混沌石價、神聖石價（各自取實際成交，不互相換算），寫成 data.js，index.html 讀它顯示
+// 用法：node price.mjs [聯盟名稱] [--no-open] [--audit]   聯盟預設為交易量最大的非標準聯盟
+//   GitHub Actions（.github/workflows/update.yml）每 20 分鐘跑一次並發布到 GitHub Pages
 import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -49,8 +50,7 @@ for (const m of rows) volByLeague[m.league] = (volByLeague[m.league] ?? 0) + 1
 const league = process.argv.slice(2).find(a => !a.startsWith('--')) || Object.keys(volByLeague).filter(l => l !== '標準模式').sort((a, b) => volByLeague[b] - volByLeague[a])[0]
 if (!volByLeague[league]) { console.error(`找不到聯盟「${league}」，可用：${Object.keys(volByLeague).join('、')}`); process.exit(1) }
 
-// 2. 名稱與分類：metadata id →（RePoE 圖檔路徑）→ 台服交易資料的同圖物品；
-//    共用圖示的（命運卡等）改用英文名 → APT 繁中物品資料
+// 2. 名稱與分類：metadata id →（RePoE 圖檔路徑）→ 台服交易資料的同圖物品
 const base = await cached('base_items.json', 'https://repoe-fork.github.io/base_items.json')
 const stat = await cached('static.json', 'https://pathofexile.tw/api/trade/data/static')
 // 共用圖示的物品（命運卡等）用英文名對照繁中名：本機有 APT 就從它的 app.asar 讀並順便更新 names-zh.json，
@@ -180,18 +180,17 @@ fs.copyFileSync(path.join(here, 'template.html'), path.join(here, 'index.html'))
 console.log(`${league}：${items.filter(i => !i.noTrade).length} 種有成交（版面共 ${items.length} 種），1 神聖石 ≈ ${divinePrice.toFixed(1)} 混沌石，資料到 ${new Date(data.updated).toLocaleString('zh-TW')}`)
 if (!process.argv.includes('--no-open')) execFile('cmd', ['/c', 'start', '', path.join(here, 'index.html')])
 
-// 檢查模式：node price.mjs --audit → 列出遊戲版面裡每個沒顯示的物品，以及原因
+// 檢查模式：node price.mjs --audit → 列出遊戲版面裡沒有成交價的物品與原因，以及對照不到版面的名稱
 if (process.argv.includes('--audit')) {
-  const stat24 = new Map() // 名稱 → { traded: 有成交的交易對, listedNow: 最新一小時在售的交易對, pairs: 出現過的對手 }
+  const stat24 = new Map() // 名稱 → { seen: 出現過的交易對, traded: 有成交的交易對 }
   const nm = id => norm(info(id).name)
-  for (const [i, d] of digests.entries()) for (const m of d.markets) {
+  for (const d of digests) for (const m of d.markets) {
     if (m.league !== league) continue
     for (const [x, y] of [m.market_pair, [...m.market_pair].reverse()]) {
-      const s = stat24.get(nm(x)) ?? stat24.set(nm(x), { traded: new Set(), listedNow: new Set(), seen: new Set() }).get(nm(x))
+      const s = stat24.get(nm(x)) ?? stat24.set(nm(x), { traded: new Set(), seen: new Set() }).get(nm(x))
       const other = y === CHAOS ? '混沌' : y === DIVINE ? '神聖' : '其他'
       s.seen.add(other)
       if (Object.values(m.volume_traded).every(v => v > 0)) s.traded.add(other)
-      if (i === 0 && m.highest_stock[x] > 0) s.listedNow.add(other)
     }
   }
   const shown = new Set(items.filter(i => !i.noTrade).map(i => norm(i.name)))
@@ -202,7 +201,7 @@ if (process.argv.includes('--audit')) {
     const r = !s ? '24 小時內完全沒出現在市場資料'
       : !['混沌', '神聖'].some(k => s.seen.has(k)) ? '只跟其他物品交易（沒有混沌/神聖交易對）'
       : !['混沌', '神聖'].some(k => s.traded.has(k)) ? '有掛單但 24 小時內沒成交'
-      : '有成交但最新一小時沒人在賣'
+      : '有成交卻沒顯示（不應發生，請檢查名稱對照）'
     ;(why[r] ??= []).push(`${tab}/${n}`)
   }
   for (const [r, list] of Object.entries(why)) console.log(`\n【${r}】${list.length} 種\n  ` + list.join('、'))
