@@ -81,6 +81,8 @@ h3::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
 .seg button + button { border-left: 1px solid var(--line); }
 .seg button:hover { color: var(--text); }
 .seg button[aria-pressed="true"] { background: var(--accent); color: #1a1408; font-weight: 700; }
+.seg button small { margin-left: 6px; font-size: 12px; opacity: .75; font-weight: 400; }
+.card.notrade.listed { opacity: .7; }
 @media (max-width: 600px) { .seg { width: 100%; } .seg button { flex: 1; } }
 .card.soldout:hover, .card.soldout[open] { opacity: 1; }
 .tag { font-size: 11px; line-height: 1; padding: 2px 5px; border-radius: 4px; border: 1px solid var(--stale); color: var(--muted); margin-left: 6px; vertical-align: 2px; font-weight: 400; }
@@ -103,7 +105,7 @@ h3::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
   </header>
   <div class="bar">
     <input id="q" type="search" placeholder="搜尋物品名稱（中文或英文）" autocomplete="off">
-    <div class="seg" id="only" role="group" aria-label="顯示範圍"><button type="button" data-only="0">全部顯示</button><button type="button" data-only="1">只看有成交</button></div>
+    <div class="seg" id="only" role="group" aria-label="顯示範圍"></div>
     <div class="chips" id="chips"></div>
   </div>
   <main id="list"></main>
@@ -143,6 +145,7 @@ function paint() {
   if (!chips.includes(cat)) cat = '所有'
   $('chips').innerHTML = chips.map(c => `<button class="chip" data-cat="${esc(c)}" aria-pressed="${c === cat}"><span class="ic">${catIcon(c).map(src => `<img src="${src}" alt="">`).join('')}</span>${esc(c)}</button>`).join('')
   stamp()
+  if (typeof segPaint === "function") segPaint()
 }
 $('chips').onclick = e => { const t = e.target.closest('.chip'); if (t) { cat = t.dataset.cat; for (const b of $('chips').children) b.setAttribute('aria-pressed', b === t); render() } }
 // 自動更新：每 2 分鐘重新載入 data.js（排程每 20 分鐘在背景重抓官方資料），有新的小時就換上
@@ -164,14 +167,20 @@ function poll() {
 setInterval(poll, 120e3)
 document.addEventListener('visibilitychange', () => { if (!document.hidden) poll() })
 $('q').oninput = render
-// 顯示範圍：全部（照遊戲完整列出）／只看有成交；記住選擇
-let onlyTraded = false
-try { onlyTraded = localStorage.getItem('only') === '1' } catch {}
-const segPaint = () => { for (const b of $('only').children) b.setAttribute('aria-pressed', (b.dataset.only === '1') === onlyTraded) }
+// 顯示範圍：全部（照遊戲完整列出）／有成交價（24h 內有成交）／現在買得到（有成交價且最新一小時有人在賣）；記住選擇
+const MODES = { all: '全部', traded: '有成交價', buyable: '現在買得到' }
+const buyable = it => !it.noTrade && [it.chaos, it.divine].some(q => q && !q.soldOut)
+const inMode = (it, m) => m === 'all' || (m === 'traded' ? !it.noTrade : buyable(it))
+let mode = 'all'
+try { mode = MODES[localStorage.getItem('mode')] ? localStorage.getItem('mode') : 'all' } catch {}
+const segPaint = () => {
+  $('only').innerHTML = Object.entries(MODES).map(([k, label]) =>
+    `<button type="button" data-mode="${k}" aria-pressed="${k === mode}">${label}<small>${D.items.filter(i => inMode(i, k)).length}</small></button>`).join('')
+}
 $('only').onclick = e => {
   const b = e.target.closest('button'); if (!b) return
-  onlyTraded = b.dataset.only === '1'; segPaint(); render()
-  try { localStorage.setItem('only', onlyTraded ? '1' : '0') } catch {}
+  mode = b.dataset.mode; segPaint(); render()
+  try { localStorage.setItem('mode', mode) } catch {}
 }
 segPaint()
 document.addEventListener('toggle', e => { if (e.target.open) for (const d of document.querySelectorAll('details.card[open]')) if (d !== e.target) d.open = false }, true)
@@ -195,9 +204,13 @@ const detail = (q, k, it) => {
 const key = it => it.noTrade ? -1 : it.chaos?.price ?? it.divine.price * D.divinePrice // 只用來排序，無成交排最後
 const soldOut = it => !it.noTrade && [it.chaos, it.divine].filter(Boolean).every(q => q.soldOut)
 // 24 小時沒有成交的物品：照遊戲位置顯示，但沒有價格（官方資料沒有成交價，不做推算）
-const noTradeCard = it => `<details class="card notrade">
-      <summary>${img(it, '')}<div class="nm" title="${esc(it.name)}">${esc(it.name)}</div><div class="px"><span class="na">24h 無成交</span></div></summary>
-      <div class="more"><div>${esc(it.en ?? '')}</div><div>最近 24 小時在通貨交換沒有任何成交，官方資料沒有成交價，所以不顯示價格。</div></div></details>`
+//   有人在賣（listing）的顯示在售數量：買得到，但要進遊戲看開價
+const stockText = it => [['chaos', '混沌'], ['divine', '神聖']].filter(([k]) => it.listing[k]).map(([k, u]) => `${u}交易對 ${num(it.listing[k])} 個`).join('、')
+const noTradeCard = it => `<details class="card notrade${it.listing ? ' listed' : ''}">
+      <summary>${img(it, '')}<div class="nm" title="${esc(it.name)}">${esc(it.name)}</div><div class="px"><span class="na">${it.listing ? `在售 ${num([Math.max(...Object.values(it.listing).filter(Boolean).map(s => s[1])), Math.max(...Object.values(it.listing).filter(Boolean).map(s => s[1]))])}・無成交價` : '24h 無成交'}</span></div></summary>
+      <div class="more"><div>${esc(it.en ?? '')}</div><div>${it.listing
+        ? `目前有人在賣（${stockText(it)}），但最近 24 小時沒有成交。官方資料只有成交價、沒有掛單開價，開價請進遊戲通貨交換查看。`
+        : '最近 24 小時在通貨交換沒有任何成交，官方資料沒有成交價，所以不顯示價格。'}</div></div></details>`
 const card = it => it.noTrade ? noTradeCard(it) : `<details class="card${soldOut(it) ? ' soldout' : ''}">
       <summary>${img(it, '')}<div class="nm" title="${esc(it.name)}">${esc(it.name)}${soldOut(it) ? '<span class="tag">售完</span>' : ''}</div><div class="px">${px(it.chaos, 'chaos')}${px(it.divine, 'divine')}</div></summary>
       <div class="more"><div>${esc(it.en ?? '')}</div>${detail(it.chaos, 'chaos', it)}${detail(it.divine, 'divine', it)}</div></details>`
@@ -216,7 +229,7 @@ function tab(c, rows) {
 }
 function render() {
   const q = $('q').value.trim().toLowerCase()
-  const hit = it => (!onlyTraded || !it.noTrade) && (!q || it.name.toLowerCase().includes(q) || it.en?.toLowerCase().includes(q))
+  const hit = it => inMode(it, mode) && (!q || it.name.toLowerCase().includes(q) || it.en?.toLowerCase().includes(q))
   const byId = new Map(D.items.map(i => [i.id, i]))
   const html = cat === '熱門'
     ? section('熱門（24 小時成交總值前 30）', D.hot.map(id => byId.get(id)).filter(hit))

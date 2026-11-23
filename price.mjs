@@ -162,7 +162,14 @@ const traded = new Set(items.map(i => norm(i.name)))
 const iconByZh = new Map(), enByZh = new Map()
 for (const c of stat.result) for (const e of c.entries) if (e.image) iconByZh.set(norm(e.text), 'https://webtw.poecdn.com' + e.image)
 for (const [en, z] of zhByEn) { enByZh.set(norm(z.name), en); if (!iconByZh.has(norm(z.name)) && z.icon) iconByZh.set(norm(z.name), z.icon) }
-for (const [n, p] of placed) if (!traded.has(n)) items.push({ name: p.label, en: enByZh.get(n), icon: iconByZh.get(n), ...p, id: 'layout:' + n, noTrade: true })
+// 沒成交但最新一小時有人在賣的，附上在售數量（官方資料沒有開價，只有數量）
+const idByZh = new Map()
+for (const d of digests) for (const m of d.markets) if (m.league === league) for (const x of m.market_pair) if (!idByZh.has(norm(info(x).name))) idByZh.set(norm(info(x).name), x)
+for (const [n, p] of placed) if (!traded.has(n)) {
+  const mid = idByZh.get(n)
+  const listing = mid && { chaos: listed.get(mid + '|' + CHAOS), divine: listed.get(mid + '|' + DIVINE) }
+  items.push({ name: p.label, en: enByZh.get(n), icon: iconByZh.get(n), ...p, id: 'layout:' + n, noTrade: true, ...(listing?.chaos || listing?.divine ? { listing } : {}) })
+}
 
 // 4. 產生網頁
 const data = { generated: Date.now(), catIcons, league, divinePrice, divineRange: pair[DIVINE].chaos.range, updated: (latest + 3600) * 1000, hours: HOURS, groups, hot, cats: EX_CATS.filter(c => items.some(i => i.cat === c)), items }
