@@ -4,17 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>台服通貨價格</title>
+<script>try { if (localStorage.getItem("theme") === "light") document.documentElement.dataset.theme = "light" } catch {}</script>
 <style>
+/* 預設深色（不跟系統），右上角按鈕可切到淺色並記住 */
 :root {
+  color-scheme: dark;
+  --bg: #15130f; --panel: #1d1a15; --line: #2e2a22; --text: #ece5d6; --muted: #8f8674;
+  --accent: #e0a458; --accent-soft: #3a2d1b; --good: #7fbf8c; --stale: #5d564a;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
   --bg: #f6f4ef; --panel: #fffdf8; --line: #e4dfd3; --text: #2a2620; --muted: #8a8172;
   --accent: #a8641c; --accent-soft: #f3e4cf; --good: #3f7d4e; --stale: #b0a796;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #15130f; --panel: #1d1a15; --line: #2e2a22; --text: #ece5d6; --muted: #8f8674;
-    --accent: #e0a458; --accent-soft: #3a2d1b; --good: #7fbf8c; --stale: #5d564a;
-  }
-}
+.theme { margin-left: 4px; border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 8px; height: 32px; padding: 0 10px; font: inherit; font-size: 13px; cursor: pointer; }
+.theme:hover { border-color: var(--accent); }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif; }
 .wrap { max-width: 1240px; margin: 0 auto; padding: 28px 16px 64px; }
@@ -22,6 +26,7 @@ header { display: flex; flex-wrap: wrap; align-items: end; justify-content: spac
 h1 { margin: 0; font-size: 26px; letter-spacing: .04em; }
 h1 small { font-size: 15px; color: var(--muted); font-weight: 400; margin-left: 8px; letter-spacing: 0; }
 .rate { display: flex; align-items: center; gap: 6px; font-size: 18px; font-variant-numeric: tabular-nums; }
+#rate { display: flex; align-items: center; gap: 6px; }
 .rate b { color: var(--accent); }
 .meta { width: 100%; color: var(--muted); font-size: 13px; }
 .stamp { width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 10px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; font-size: 14px; }
@@ -82,7 +87,7 @@ h3::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
 <div class="wrap">
   <header>
     <h1>台服通貨價格<small id="league"></small></h1>
-    <div class="rate" id="rate"></div>
+    <div class="rate"><span id="rate"></span><button class="theme" id="theme" type="button"></button></div>
     <div class="stamp" id="stamp"></div>
     <div class="meta" id="meta"></div>
   </header>
@@ -151,7 +156,7 @@ $('q').oninput = render
 document.addEventListener('toggle', e => { if (e.target.open) for (const d of document.querySelectorAll('details.card[open]')) if (d !== e.target) d.open = false }, true)
 document.addEventListener('click', e => { if (!e.target.closest('details.card')) for (const d of document.querySelectorAll('details.card[open]')) d.open = false })
 
-const unit = { chaos: ['混沌石', chaos], divine: ['神聖石', divine] }
+const unit = { get chaos() { return ['混沌石', chaos] }, get divine() { return ['神聖石', divine] } }
 const range = ([a, b]) => a === b ? fmt(a) : `${fmt(a)}–${fmt(b)}`
 const num = ([a, b]) => a === b ? a.toLocaleString() : `${a.toLocaleString()}–${b.toLocaleString()}`
 // 卡片上只放價格；比例、成交量、在售量收在展開區
@@ -202,6 +207,14 @@ function fit() {
   document.documentElement.style.setProperty('--cw', Math.floor((w - gap * (cols - 1)) / cols * 100) / 100 + 'px')
   for (const g of document.querySelectorAll('.grp')) g.style.setProperty('--k', Math.min(+g.style.getPropertyValue('--n'), cols)) // 每組佔幾欄
 }
+const themeBtn = () => { $('theme').textContent = document.documentElement.dataset.theme === 'light' ? '🌙 深色' : '☀ 淺色' }
+$('theme').onclick = () => {
+  const light = document.documentElement.dataset.theme !== 'light'
+  if (light) document.documentElement.dataset.theme = 'light'; else delete document.documentElement.dataset.theme
+  try { localStorage.setItem('theme', light ? 'light' : 'dark') } catch {}
+  themeBtn()
+}
+themeBtn()
 paint()
 new ResizeObserver(fit).observe($('list')) // 視窗縮放、捲軸出現或消失都會重算
 render()
