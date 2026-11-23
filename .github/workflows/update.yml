@@ -4,7 +4,7 @@
 # 觸發方式有兩種，互為備援：
 #   1. GitHub 排程（cron）—— GitHub 不保證準時，新 repo 常常好幾小時都不觸發
 #   2. 接力：每次執行完，等到下一個 :07/:27/:47 再觸發下一次（GitHub 允許用內建臨時權杖觸發 workflow_dispatch，不需任何金鑰）
-#      若已有其他執行在排隊／進行中就不再觸發，避免越接越多條
+#      同時有多條接力時只由最新的一條觸發，其餘自動停下，最後永遠只剩一條
 # 要停止自動更新：到 repo 的 Actions → update-prices → 右上「⋯」→ Disable workflow
 name: update-prices
 
@@ -74,11 +74,13 @@ jobs:
           [ "$wait" -lt 60 ] && wait=$(( wait + 1200 ))
           echo "等待 ${wait} 秒到下一個時間點"
           sleep "$wait"
-          others=$(gh run list --workflow update.yml --limit 20 --json databaseId,status \
-            --jq "[.[] | select(.databaseId != ${{ github.run_id }} and (.status == \"queued\" or .status == \"in_progress\" or .status == \"waiting\" or .status == \"pending\" or .status == \"requested\"))] | length")
-          if [ "$others" = "0" ]; then
+          # 只由「最新」的那條接力觸發：若有比自己新、且還在排隊／進行中的執行，就交給它，自己停下。
+          # （兩條接力同時到點時，舊的會讓給新的，不會兩邊都停、也不會變成兩條）
+          newer=$(gh run list --workflow update.yml --limit 20 --json databaseId,status \
+            --jq "[.[] | select(.databaseId > ${{ github.run_id }} and (.status == \"queued\" or .status == \"in_progress\" or .status == \"waiting\" or .status == \"pending\" or .status == \"requested\"))] | length")
+          if [ "$newer" = "0" ]; then
             gh workflow run update.yml --ref main
             echo "已觸發下一次執行"
           else
-            echo "已有 ${others} 個執行在排隊或進行中，不重複觸發"
+            echo "有 ${newer} 個較新的執行在進行，由它接力，這裡不觸發"
           fi
