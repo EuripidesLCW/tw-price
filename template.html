@@ -184,7 +184,9 @@ let D = window.TW_DATA
 const $ = id => document.getElementById(id)
 let chaos, divine
 const img = (it, cls = 'ico') => it?.icon ? `<img class="${cls}" src="${it.icon}" alt="" loading="lazy">` : ''
-const fmt = n => n >= 100 ? Math.round(n).toLocaleString() : n >= 10 ? n.toFixed(1) : n >= 1 ? n.toFixed(2) : n.toPrecision(2)
+const fmt = n => n >= 100 ? Math.round(n).toLocaleString() : String(+(n >= 10 ? n.toFixed(1) : n >= 1 ? n.toFixed(2) : n.toPrecision(2)))
+// 成交區間的最低價不到均價的 1/3、或最高價超過均價 3 倍：很可能是掛錯單之類的異常成交，數字照列但加註
+const odd = (avg, [lo, hi]) => [lo < avg / 3 ? '含異常低價成交（不到均價的 1/3）' : '', hi > avg * 3 ? '含異常高價成交（超過均價 3 倍）' : ''].filter(Boolean).join('、')
 const esc = s => String(s).replace(/[&<>"]/g, c => `&#${c.charCodeAt(0)};`)
 const two = n => String(n).padStart(2, '0')
 const hhmm = d => `${two(d.getHours())}:${two(d.getMinutes())}`
@@ -215,7 +217,7 @@ let lastCheck = Date.now() // 本頁最後一次檢查新資料的時間
 function paint() {
   chaos = D.items.find(i => i.en === 'Chaos Orb'); divine = D.items.find(i => i.en === 'Divine Orb')
   $('league').textContent = D.league
-  $('rate').innerHTML = `<span class="pair">${img(divine)} 1 = <b>${fmt(D.divinePrice)}</b> ${img(chaos)}</span><small>${span(0)} 成交區間 ${fmt(D.divineRange[0])}～${fmt(D.divineRange[1])}</small>`
+  $('rate').innerHTML = `<span class="pair">${img(divine)} 1 = <b>${fmt(D.divinePrice)}</b> ${img(chaos)}</span><small>${span(0)} 成交區間 ${fmt(D.divineRange[0])}～${fmt(D.divineRange[1])}${odd(D.divinePrice, D.divineRange) ? '，' + odd(D.divinePrice, D.divineRange) : ''}</small>`
   $('meta').textContent = `價格是遊戲內通貨交換的實際成交均價，混沌石價和神聖石價各自來自實際成交，不互相換算。`
     + `價格呈灰色：成交時段早於資料時間，點開可看是哪個時段。「售完」：資料時間內沒有人在賣。「無成交」：${D.hours} 小時內沒有成交，因此沒有價格。分類與順序與遊戲相同。`
   const chips = ['所有', '熱門', ...D.cats]
@@ -300,7 +302,8 @@ const detail = (q, k, it) => {
   if (!q) return it === unit[k][1] ? '' : `<div class="none"><b>${u}價</b>：24 小時內沒有成交</div>`
   const cheap = q.price < 1
   const avg = cheap ? `1 ${u} = ${fmt(1 / q.price)} 個` : `1 個 = ${fmt(q.price)} ${u}`
-  const rng = cheap ? `1 ${u} = ${range([1 / q.range[1], 1 / q.range[0]])} 個` : `${range(q.range)} ${u}`
+  const note = odd(q.price, q.range)
+  const rng = (cheap ? `1 ${u} = ${range([1 / q.range[1], 1 / q.range[0]])} 個` : `${range(q.range)} ${u}`) + (note ? `<br><span class="warn">${note}</span>` : '')
   const stock = q.soldOut ? `<span class="warn">0 個（${spanH(0)} 沒有人在賣）</span>`
     : q.stock[0] === q.stock[1] ? `${num(q.stock)} 個（${spanH(0)}）` : `${num(q.stock)} 個（${spanH(0)} 期間最少～最多）`
   return `<div><b>${u}價</b><dl><dt>均價</dt><dd>${avg}</dd><dt>區間</dt><dd>${rng}</dd>`
