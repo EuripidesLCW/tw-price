@@ -27,7 +27,7 @@ static class App
 {
     const string Site = "https://euripideslcw.github.io/tw-price/";
     // 版本號：改了這個檔案要重新編譯並把這裡加 1；網站的 app-version.json 由 GitHub Actions 依此產生
-    const string Version = "1.2.1";
+    const string Version = "1.3.0";
     // 更新簽章的公鑰（RSA-3072）。對應的私鑰只在發布者的電腦上，不在任何網路服務裡：
     // 就算網站或 GitHub 帳號被入侵，沒有私鑰就簽不出能通過驗證的 exe，小程式不會安裝它。
     const string UpdatePublicKey = "<RSAKeyValue><Modulus>tVzDffWFSdWpzM3O1YJwzkjTgA75R3+GsAm97fXJuE59qO0M3ldv6Xk2YP2Fdg7ysMoy0BOgRWyy19rlEOGmZVGjt6cSN0/Kpi28qNN+fNZYATRfk82gB++03d+2hEk3MHxPliaWYUR0JupFPbxpx2wUWso93+CUBaB+R3Aq07aEWY6OWdNGpNE5M4scNSjRf4UspT26GJLRDjTP8UwUYFoVATcxpCEJsUIDS11v/ctlfTPwetzqmzk3PONu1905AeioBolCPHW23HqfPT+OXZ/5ucA1DPKukcxHdBHWpqoXkoW3ClzTqlxpXyeZfbUJp62L8Kz53Pi+WVpGiv9aFI3EnazY2PjzrG7A5wKxNyNnKEh+3Ok8QWG4W9QMm7Kp1SSmJj9MPC+5eVr67ZeS4qpAsoksY0FeMWguBxuOvZeaI3wl3Y7+giA5uDnhL1NIcNz/NCuhN7ljck+9f1RCm7+2+nBL44xPqXznYqFSU9Pt/7WR76FYoMoHBel/mMyh</Modulus><Exponent>AQAB</Exponent></RSAKeyValue>";
@@ -51,12 +51,14 @@ static class App
         Directory.CreateDirectory(Dir);
         bool first;
         Single = new Mutex(true, "TwPriceOverlay.Singleton", out first);
+        // --background：開機自動啟動時用，只在右下角待命，不開小窗（遊戲裡 Ctrl+C 才自動打開）
+        bool bg = Array.IndexOf(args, "--background") >= 0;
         if (!first)
         {
             // 已經在執行：只再開一次小窗
             int p;
             Port = int.TryParse(ReadFile("port.txt"), out p) ? p : BasePort;
-            OpenWindow(false);
+            if (!bg) OpenWindow(false);
             return;
         }
         ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
@@ -80,14 +82,21 @@ static class App
         top.Checked = true;
         top.Click += delegate { KeepTop = !KeepTop; top.Checked = KeepTop; ApplyTop(); };
         menu.Items.Add(top);
+        var auto = new ToolStripMenuItem("開機時自動在背景啟動");
+        auto.Checked = AutoStart();
+        if (auto.Checked) SetAutoStart(true); // exe 搬過位置的話，更新成目前的路徑
+        auto.Click += delegate { SetAutoStart(!auto.Checked); auto.Checked = AutoStart(); };
+        menu.Items.Add(auto);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("結束", null, delegate { Tray.Visible = false; Application.Exit(); });
         Tray.ContextMenuStrip = menu;
         Tray.DoubleClick += delegate { OpenWindow(false); };
         Tray.Visible = true;
-        Tray.ShowBalloonTip(4000, "台服通貨價格", "已啟動。遊戲裡把滑鼠移到物品上按 Ctrl+C，小窗就會顯示價格。右下角圖示可重新開啟或結束。", ToolTipIcon.Info);
+        Tray.ShowBalloonTip(4000, "台服通貨價格", bg
+            ? "已在背景待命。遊戲裡按 Ctrl+C 就會自動開啟小窗顯示價格。"
+            : "已啟動。遊戲裡把滑鼠移到物品上按 Ctrl+C，小窗就會顯示價格。右鍵右下角圖示可設定「開機時自動在背景啟動」。", ToolTipIcon.Info);
 
-        OpenWindow(false);
+        if (!bg) OpenWindow(false);
         StartUpdateChecks();
         Application.Run();
         clip.Dispose();
@@ -137,6 +146,7 @@ static class App
                         if (t == ClipText && now - ClipAt < 1500) return;
                         Seq++; ClipText = t; ClipAt = now;
                     }
+                    AutoOpen();
                     return;
                 }
                 catch (ExternalException) { Thread.Sleep(40); }
@@ -388,8 +398,49 @@ static class App
     // 支援 --app 獨立小窗模式的 Chromium 系瀏覽器
     static readonly string[] AppCapable = { "chrome.exe", "msedge.exe", "brave.exe", "vivaldi.exe" };
 
+    // ── 開機自動啟動（只寫目前使用者的登錄，不需要系統管理員權限）─────
+    const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+    static bool AutoStart()
+    {
+        using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(RunKey)) return k != null && k.GetValue("TwPriceOverlay") != null;
+    }
+    static void SetAutoStart(bool on)
+    {
+        using (var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(RunKey))
+        {
+            if (on) k.SetValue("TwPriceOverlay", "\"" + Application.ExecutablePath + "\" --background");
+            else k.DeleteValue("TwPriceOverlay", false);
+        }
+    }
+
+    // 複製到遊戲物品、但小窗（或完整版面）沒開：自動打開。
+    // 瀏覽器開窗要幾秒，10 秒內不重複開，避免連按 Ctrl+C 開出好幾個視窗。新開的頁面會自己讀到剛才複製的物品。
+    static long LastOpen;
+    static void AutoOpen()
+    {
+        long now = DateTime.UtcNow.Ticks / 10000;
+        if (now - LastOpen < 10000 || WindowOpen()) return;
+        LastOpen = now;
+        OpenWindow(false);
+    }
+    static bool WindowOpen()
+    {
+        bool found = false;
+        EnumWindows(delegate (IntPtr h, IntPtr p)
+        {
+            if (!IsWindowVisible(h)) return true;
+            var sb = new StringBuilder(256);
+            GetWindowText(h, sb, 256);
+            string t = sb.ToString();
+            if (t.Contains("疊加") || t == "台服通貨價格") { found = true; return false; }
+            return true;
+        }, IntPtr.Zero);
+        return found;
+    }
+
     static void OpenWindow(bool wide)
     {
+        LastOpen = DateTime.UtcNow.Ticks / 10000;
         string url = "http://127.0.0.1:" + Port + "/" + (wide ? "" : "?overlay=1");
         string exe = DefaultBrowserExe();
         bool app = exe != null && Array.IndexOf(AppCapable, Path.GetFileName(exe).ToLowerInvariant()) >= 0;

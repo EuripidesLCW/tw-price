@@ -117,7 +117,8 @@ h3::after { content: ""; flex: 1; border-top: 1px solid var(--line); order: 1; }
 .card summary:hover { background: var(--accent-soft); border-radius: 10px; }
 .card summary > img { width: 34px; height: 34px; object-fit: contain; grid-row: span 2; }
 .card .nm { font-size: 14px; line-height: 1.3; overflow-wrap: anywhere; } /* 名稱完整顯示（長名稱換行），紋身這類圖示相同的物品才分得出來 */
-.card .px { display: flex; flex-wrap: wrap; gap: 0 12px; font-size: 15px; font-weight: 600; }
+.card .px { display: grid; justify-items: start; gap: 1px; font-size: 15px; font-weight: 600; } /* 一種通貨一行，每張卡片排法一樣才會對齊 */
+.card .px .v { font-weight: inherit; min-width: 3.4em; } /* 數字欄固定寬度，漲跌標示排成一直線 */
 .card .px span { display: inline-flex; align-items: center; gap: 3px; }
 .card .px .na { color: var(--stale); font-weight: 400; }
 .card .px .stale { color: var(--stale); }
@@ -158,7 +159,7 @@ h3::after { content: ""; flex: 1; border-top: 1px solid var(--line); order: 1; }
 .card .more .none b { font-weight: 500; }
 .ico { width: 18px; height: 18px; }
 .empty { color: var(--muted); padding: 40px 0; text-align: center; }
-@media (max-width: 600px) { .card .px { gap: 0 8px; font-size: 14px; } }
+@media (max-width: 600px) { .card .px { font-size: 14px; } }
 
 /* 疊加模式（?overlay=1）：400px 左右的小窗、蓋在遊戲上面。
    窄到會觸發上面的手機版面，所以這裡只收掉「蓋在遊戲上時不需要的東西」：
@@ -222,7 +223,7 @@ html.ov .tools { display: none; }
       <a class="tool" id="dlBtn" href="TwPriceOverlay.zip" download>⬇ 下載 Windows 小程式<small>免安裝 · 約 20 KB</small></a>
       <details class="tools-help"><summary>怎麼用？</summary>
         <p><b>置頂小窗（免安裝，Chrome／Edge 電腦版）</b>：按「開啟置頂小窗」會出現一個永遠在最上層的小視窗。在遊戲裡游標指著物品按 <kbd>Ctrl</kbd>+<kbd>C</kbd>，再點一下小窗按 <kbd>Ctrl</kbd>+<kbd>V</kbd>，就會顯示它的價格。</p>
-        <p><b>Windows 小程式</b>：解壓縮後雙擊 <code>TwPriceOverlay.exe</code>，會開一個蓋在遊戲上的小窗。之後在遊戲裡游標指著物品按 <kbd>Ctrl</kbd>+<kbd>C</kbd>，<b>不用切換視窗</b>就自動顯示價格。右下角工作列圖示可以重新開啟小窗或結束。</p>
+        <p><b>Windows 小程式</b>：解壓縮後雙擊 <code>TwPriceOverlay.exe</code>，會開一個蓋在遊戲上的小窗。之後在遊戲裡游標指著物品按 <kbd>Ctrl</kbd>+<kbd>C</kbd>，<b>不用切換視窗</b>就自動顯示價格。小窗關掉了，在遊戲裡按 <kbd>Ctrl</kbd>+<kbd>C</kbd> 會自動再打開。<b>推薦</b>：右鍵右下角工作列圖示，勾選「開機時自動在背景啟動」，以後開機它就在背景待命，不用再去點 exe。</p>
         <p>第一次執行時 Windows 可能顯示「Windows 已保護您的電腦」，這是因為小程式沒有付費購買數位簽章：按「其他資訊」→「仍要執行」即可。小程式只讀取「遊戲物品」的複製內容（含「稀有度」那一行），其他複製的文字一律不讀取、不傳送；原始碼公開在 <a href="https://github.com/EuripidesLCW/tw-price/tree/main/app" target="_blank" rel="noopener">GitHub</a>。</p>
         <p>兩種方式都需要遊戲設為「視窗化全螢幕」，小窗才蓋得上去。</p>
         <p><b>自動更新與安全</b>：小程式啟動時與每 6 小時會檢查新版，新版必須通過發布者的數位簽章驗證才會安裝（簽章的私鑰不在網站或 GitHub 上，網站被入侵也無法推送假更新）。<span id="shaLine"></span></p>
@@ -372,7 +373,7 @@ const num = ([a, b]) => a === b ? a.toLocaleString() : `${a.toLocaleString()}～
 // 漲跌幅：▲12% ／ ▼3.5% ／ 不到 1% 寫「持平」；沒資料（成交太少）不顯示
 const pct = v => Math.abs(v) >= 10 ? Math.round(Math.abs(v)) : Math.abs(v).toFixed(1)
 const chg = (v, label = '') => v == null ? '' : Math.abs(v) < 1 ? `<i class="chg flat">${label}持平</i>` : `<i class="chg ${v > 0 ? 'up' : 'dn'}">${label}${v > 0 ? '▲' : '▼'}${pct(v)}%</i>`
-const px = (q, k) => q ? `<span class="${q.soldOut ? 'out' : q.ago ? 'stale' : ''}" title="${unit[k][0]}價${q.soldOut ? `（${span(0)} 沒有人在賣）` : q.ago ? `（${span(q.ago)} 的成交）` : ''}${q.d1 != null ? `；近 24 小時成交均價比前一天${Math.abs(q.d1) < 1 ? '持平' : (q.d1 > 0 ? '漲 ' : '跌 ') + pct(q.d1) + '%'}` : ''}">${img(unit[k][1])}${fmt(q.price)}${chg(q.d1)}</span>` : `<span class="na" title="24 小時內沒有${unit[k][0]}成交">${img(unit[k][1])}—</span>`
+const px = (q, k) => q ? `<span class="${q.soldOut ? 'out' : q.ago ? 'stale' : ''}" title="${unit[k][0]}價${q.soldOut ? `（${span(0)} 沒有人在賣）` : q.ago ? `（${span(q.ago)} 的成交）` : ''}${q.d1 != null ? `；近 24 小時成交均價比前一天${Math.abs(q.d1) < 1 ? '持平' : (q.d1 > 0 ? '漲 ' : '跌 ') + pct(q.d1) + '%'}` : ''}">${img(unit[k][1])}<b class="v">${fmt(q.price)}</b>${chg(q.d1)}</span>` : `<span class="na" title="24 小時內沒有${unit[k][0]}成交">${img(unit[k][1])}—</span>`
 // 展開區：每種通貨一個小表格（均價／區間／成交／在售）。
 // 均價、區間、成交量來自「最近一次有成交的時段」（可能早於資料時間）；在售是資料時間的狀況，各自標出時段。
 // 不到 1 個通貨的物品寫成「1 混沌石 = N 個」，不用自己換算
