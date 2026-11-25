@@ -77,6 +77,9 @@ tr:last-child td { border-bottom: 0; }
 .pick input { width: 16px; height: 16px; accent-color: var(--accent); margin: 0; cursor: pointer; }
 tr.off .to > :not(.keepnote) { opacity: .35; filter: grayscale(1); }
 .keepnote { font-size: 13px; color: var(--accent); margin-bottom: 6px; }
+.top { position: fixed; right: 16px; bottom: 16px; z-index: 10; width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent); font: inherit; font-size: 12px; font-weight: 700; line-height: 1.1; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.35); opacity: 0; pointer-events: none; transform: translateY(8px); transition: opacity .2s, transform .2s; }
+.top.show { opacity: 1; pointer-events: auto; transform: none; }
+.top:hover { background: var(--accent); color: var(--bg); }
 .why { font-size: 12px; color: var(--muted); opacity: .85; margin-top: 4px; }
 </style>
 </head>
@@ -103,6 +106,7 @@ tr.off .to > :not(.keepnote) { opacity: .35; filter: grayscale(1); }
 
   <section class="res" id="res" hidden></section>
 </main>
+<button type="button" class="top" id="top" aria-label="回到頁面最上面">▲<br>頂端</button>
 <script src="data.js"></script>
 <script src="filter.js"></script>
 <script>
@@ -183,6 +187,10 @@ async function load(f) {
   current = { text: await f.text(), name: f.name }
   run()
 }
+// 右下角「回到頂端」：往下捲超過一個畫面才出現
+const toTop = $('top')
+addEventListener('scroll', () => toTop.classList.toggle('show', scrollY > innerHeight), { passive: true })
+toTop.onclick = () => scrollTo({ top: 0, behavior: 'smooth' })
 $('file').onchange = e => load(e.target.files[0])
 const drop = $('drop')
 drop.ondragover = e => { e.preventDefault(); drop.classList.add('over') }
