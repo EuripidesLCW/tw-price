@@ -27,7 +27,7 @@ static class App
 {
     const string Site = "https://euripideslcw.github.io/tw-price/";
     // 版本號：改了這個檔案要重新編譯並把這裡加 1；網站的 app-version.json 由 GitHub Actions 依此產生
-    const string Version = "1.3.1";
+    const string Version = "1.3.2";
     // 更新簽章的公鑰（RSA-3072）。對應的私鑰只在發布者的電腦上，不在任何網路服務裡：
     // 就算網站或 GitHub 帳號被入侵，沒有私鑰就簽不出能通過驗證的 exe，小程式不會安裝它。
     const string UpdatePublicKey = "<RSAKeyValue><Modulus>tVzDffWFSdWpzM3O1YJwzkjTgA75R3+GsAm97fXJuE59qO0M3ldv6Xk2YP2Fdg7ysMoy0BOgRWyy19rlEOGmZVGjt6cSN0/Kpi28qNN+fNZYATRfk82gB++03d+2hEk3MHxPliaWYUR0JupFPbxpx2wUWso93+CUBaB+R3Aq07aEWY6OWdNGpNE5M4scNSjRf4UspT26GJLRDjTP8UwUYFoVATcxpCEJsUIDS11v/ctlfTPwetzqmzk3PONu1905AeioBolCPHW23HqfPT+OXZ/5ucA1DPKukcxHdBHWpqoXkoW3ClzTqlxpXyeZfbUJp62L8Kz53Pi+WVpGiv9aFI3EnazY2PjzrG7A5wKxNyNnKEh+3Ok8QWG4W9QMm7Kp1SSmJj9MPC+5eVr67ZeS4qpAsoksY0FeMWguBxuOvZeaI3wl3Y7+giA5uDnhL1NIcNz/NCuhN7ljck+9f1RCm7+2+nBL44xPqXznYqFSU9Pt/7WR76FYoMoHBel/mMyh</Modulus><Exponent>AQAB</Exponent></RSAKeyValue>";
@@ -99,6 +99,7 @@ static class App
 
         if (!bg) OpenWindow(false);
         StartUpdateChecks();
+        StartNameLoader();
         Application.Run();
         clip.Dispose();
         GC.KeepAlive(Single);
@@ -147,7 +148,8 @@ static class App
                         if (t == ClipText && now - ClipAt < 1500) return;
                         Seq++; ClipText = t; ClipAt = now;
                     }
-                    AutoOpen();
+                    // 只有價格表上有的物品（通貨交換能交易的）才自動打開小窗；裝備等其他物品不跳出來擋畫面
+                    if (Priced(t)) AutoOpen();
                     return;
                 }
                 catch (ExternalException) { Thread.Sleep(40); }
@@ -427,6 +429,46 @@ static class App
             if (on) k.SetValue("TwPriceOverlay", "\"" + Application.ExecutablePath + "\" --background");
             else k.DeleteValue("TwPriceOverlay", false);
         }
+    }
+
+    // 價格表上的物品名稱（中文、英文），從網站的 data.js 取出；啟動時讀一次，之後每 30 分鐘更新
+    static HashSet<string> Names = new HashSet<string>();
+    static readonly Regex NameRe = new Regex("\"(?:name|en)\":\"([^\"]+)\"");
+    static string Norm(string s) { return s.Replace("汙", "污").Trim(); }
+    static void StartNameLoader()
+    {
+        var t = new Thread(delegate ()
+        {
+            while (true)
+            {
+                try
+                {
+                    string js = Encoding.UTF8.GetString(Proxy("data.js"));
+                    var set = new HashSet<string>();
+                    foreach (Match m in NameRe.Matches(js)) set.Add(Norm(m.Groups[1].Value));
+                    if (set.Count > 100) lock (Lk) Names = set; // 抓失敗（內容太少）就沿用上一份
+                }
+                catch { }
+                Thread.Sleep(30 * 60 * 1000);
+            }
+        });
+        t.IsBackground = true;
+        t.Start();
+    }
+    // 物品名稱在「稀有度」那一行之後、第一條分隔線之前（稀有裝備會有兩行：名稱＋基底）
+    static bool Priced(string text)
+    {
+        HashSet<string> names;
+        lock (Lk) names = Names;
+        bool after = false;
+        foreach (string raw in text.Split('\n'))
+        {
+            string line = raw.Trim();
+            if (!after) { after = ItemLike.IsMatch(line); continue; }
+            if (line.StartsWith("--")) break;
+            if (line.Length > 0 && names.Contains(Norm(line))) return true;
+        }
+        return false;
     }
 
     // 複製到遊戲物品、但小窗（或完整版面）沒開：自動打開。
