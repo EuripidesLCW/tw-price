@@ -390,7 +390,7 @@ const detail = (q, k, it) => {
   const one = p => cheap ? `1 ${u} = ${fmt(1 / p)} 個` : `1 個 = ${fmt(p)} ${u}`
   const hrs = `最近 ${q.sellN} 個有成交的小時`
   const note = odd(q.price, q.range)
-  const rng = (cheap ? `1 ${u} = ${range([1 / q.range[1], 1 / q.range[0]])} 個` : `${range(q.range)} ${u}`) + (note ? `<br><span class="warn">${note}</span>` : '')
+  const rng = (cheap ? `1 ${u} = ${range([1 / q.range[1], 1 / q.range[0]])} 個` : `${range(q.range)} ${u}`) + `（${spanH(q.ago)}）` + (note ? `<br><span class="warn">${note}</span>` : '')
   const stock = q.soldOut ? `<span class="warn">0 個（${spanH(0)} 沒有人在賣）</span>`
     : q.stock[0] === q.stock[1] ? `${num(q.stock)} 個（${spanH(0)}）` : `${num(q.stock)} 個（${spanH(0)} 期間最少～最多）`
   return `<div><b>${u}價</b><dl><dt title="${hrs}，每小時最高成交價的中位數：掛單願意等，大約賣得到這個價">掛單賣</dt><dd>${one(q.sell)}</dd><dt title="${hrs}，每小時最低成交價的中位數：急著賣、直接賣給收購的人，大約只拿到這個價">急著賣</dt><dd>${one(q.quick)}</dd><dt>成交均價</dt><dd>${one(q.price)}</dd><dt>區間</dt><dd>${rng}</dd>`
