@@ -191,6 +191,7 @@ html.ov .tools { display: none; }
 .pip .grid { grid-template-columns: 1fr; }
 .pip .card .more { position: static; border: 0; border-top: 1px dashed var(--line); box-shadow: none; border-radius: 0 0 10px 10px; }
 .pip .card[open] { border-radius: 10px; }
+.pip .card summary { height: auto; } /* 網格裡用來讓同排等高的「撐滿」，在小窗裡會把詳細資料擠出去 */
 .pip input { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); font: inherit; }
 /* 剛從剪貼簿跳過來的那張卡閃一下，不然在清單裡不知道看哪 */
 @keyframes clipflash { from { box-shadow: 0 0 0 2px var(--accent); } to { box-shadow: 0 0 0 2px transparent; } }
@@ -605,7 +606,7 @@ function pipShow(it) {
 }
 async function openPip() {
   if (pipWin && !pipWin.closed) { pipWin.focus(); return }
-  pipWin = await documentPictureInPicture.requestWindow({ width: 380, height: 480 })
+  pipWin = await documentPictureInPicture.requestWindow({ width: 420, height: 640 })
   const d = pipWin.document
   for (const s of document.querySelectorAll('style')) d.head.append(s.cloneNode(true))
   if (document.documentElement.dataset.theme) d.documentElement.dataset.theme = document.documentElement.dataset.theme

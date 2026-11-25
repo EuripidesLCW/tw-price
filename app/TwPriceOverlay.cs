@@ -265,39 +265,57 @@ static class App
     }
 
     // ── 瀏覽器小窗 ───────────────────────────────────────────
+    // 使用者在 Windows 設定的預設瀏覽器（https 的關聯程式）；讀不到就回傳 null
+    static string DefaultBrowserExe()
+    {
+        try
+        {
+            string prog = null;
+            using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\Shell\Associations\UrlAssociations\https\UserChoice"))
+                if (k != null) prog = k.GetValue("ProgId") as string;
+            if (string.IsNullOrEmpty(prog)) return null;
+            string cmd = null;
+            using (var c = Microsoft.Win32.Registry.ClassesRoot.OpenSubKey(prog + @"\shell\open\command"))
+                if (c != null) cmd = c.GetValue("") as string;
+            if (string.IsNullOrEmpty(cmd)) return null;
+            // 形如 "C:\...\chrome.exe" --single-argument %1
+            string exe = cmd.StartsWith("\"") ? cmd.Substring(1, cmd.IndexOf('"', 1) - 1) : cmd.Split(' ')[0];
+            return File.Exists(exe) ? exe : null;
+        }
+        catch { return null; }
+    }
+
+    // 支援 --app 獨立小窗模式的 Chromium 系瀏覽器
+    static readonly string[] AppCapable = { "chrome.exe", "msedge.exe", "brave.exe", "vivaldi.exe" };
+
     static void OpenWindow(bool wide)
     {
-        string pf = Environment.GetEnvironmentVariable("ProgramFiles") ?? "";
-        string pf86 = Environment.GetEnvironmentVariable("ProgramFiles(x86)") ?? "";
-        string local = Environment.GetEnvironmentVariable("LOCALAPPDATA") ?? "";
-        string[] browsers = {
-            Path.Combine(pf86, @"Microsoft\Edge\Application\msedge.exe"),
-            Path.Combine(pf, @"Microsoft\Edge\Application\msedge.exe"),
-            Path.Combine(pf, @"Google\Chrome\Application\chrome.exe"),
-            Path.Combine(pf86, @"Google\Chrome\Application\chrome.exe"),
-            Path.Combine(local, @"Google\Chrome\Application\chrome.exe"),
-        };
-        string exe = null;
-        foreach (var b in browsers) if (File.Exists(b)) { exe = b; break; }
         string url = "http://127.0.0.1:" + Port + "/" + (wide ? "" : "?overlay=1");
-        if (exe == null)
+        string exe = DefaultBrowserExe();
+        bool app = exe != null && Array.IndexOf(AppCapable, Path.GetFileName(exe).ToLowerInvariant()) >= 0;
+        if (!app)
         {
-            // 沒有 Edge / Chrome：用預設瀏覽器開，只是不會是獨立小窗
+            // 預設瀏覽器不支援獨立小窗（例如 Firefox）或讀不到：直接用預設瀏覽器開網頁
             Process.Start(url);
+            if (!wide) StartTopThread();
             return;
         }
-        // 專用的資料夾：才會是獨立視窗，而且瀏覽器會記住小窗的大小與位置
+        // 專用的資料夾：才會是獨立視窗，而且瀏覽器會記住小窗的大小與位置。
+        // 停用擴充功能：全新的設定檔會讓「全電腦安裝」的擴充功能（防毒、廣告阻擋…）跳出歡迎頁，多開一個瀏覽器視窗。
+        // 這些設定只影響小窗自己的設定檔，不動使用者平常的瀏覽器。
         string profile = Path.Combine(Dir, wide ? "profile-wide" : "profile-overlay");
         string args = "--app=\"" + url + "\" --user-data-dir=\"" + profile + "\" " +
             (wide ? "--window-size=1100,900" : "--window-size=420,820") +
-            " --no-first-run --no-default-browser-check --disable-features=Translate";
+            " --no-first-run --no-default-browser-check --disable-extensions --disable-sync --disable-features=Translate";
         Process.Start(exe, args);
-        if (!wide)
-        {
-            var t = new Thread(delegate () { for (int i = 0; i < 40; i++) { Thread.Sleep(400); if (ApplyTop()) return; } });
-            t.IsBackground = true;
-            t.Start();
-        }
+        if (!wide) StartTopThread();
+    }
+
+    static void StartTopThread()
+    {
+        var t = new Thread(delegate () { for (int i = 0; i < 40; i++) { Thread.Sleep(400); if (ApplyTop()) return; } });
+        t.IsBackground = true;
+        t.Start();
     }
 
     // ── 置頂 ─────────────────────────────────────────────────
