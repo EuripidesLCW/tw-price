@@ -36,7 +36,6 @@ h1 { font-size: 26px; margin: 8px 0 6px; }
 .drop span { color: var(--muted); font-size: 13px; }
 .drop input { display: none; }
 .opts { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 12px 0 0; color: var(--muted); font-size: 14px; }
-.opts select { font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; }
 .msg { margin: 16px 0 0; padding: 12px 16px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); }
 .msg.err { border-color: var(--warn); color: var(--warn); }
 .res { margin-top: 26px; }
@@ -92,13 +91,6 @@ tr:last-child td { border-bottom: 0; }
     <span>或把 .filter 檔拖到這裡</span>
   </label>
   <div class="opts">
-    <label>你現在刷的地方
-      <select id="area">
-        <option value="83">高階地圖（T11～T16）</option>
-        <option value="75">低階地圖（T1～T10）</option>
-        <option value="45">劇情</option>
-      </select>
-    </label>
     <span id="dataTime"></span>
   </div>
   <div class="msg err" id="err" hidden></div>
@@ -145,7 +137,7 @@ function run() {
   if (!current) return
   $('err').hidden = true
   let r
-  try { r = twFilter(D, current.text, current.name, { area: +$('area').value }) }
+  try { r = twFilter(D, current.text, current.name) }
   catch (e) { $('res').hidden = true; $('err').textContent = e.message; $('err').hidden = false; return }
   const up = r.changes.filter(c => c.up), dn = r.changes.filter(c => !c.up)
   $('res').innerHTML = `<p class="file">檔案：${esc(current.name)}</p>
@@ -174,7 +166,6 @@ async function load(f) {
   run()
 }
 $('file').onchange = e => load(e.target.files[0])
-$('area').onchange = run
 const drop = $('drop')
 drop.ondragover = e => { e.preventDefault(); drop.classList.add('over') }
 drop.ondragleave = () => drop.classList.remove('over')

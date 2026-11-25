@@ -4,7 +4,7 @@
 //   2. 照遊戲的方式（由上往下、第一條符合就用，Continue 會往下疊加）模擬每個有台服價格的物品，得到作者現在給它的樣式
 //   3. 依樣式分組，算每組物品的台服價格中間值 → 反推「這位作者的每種樣式代表多少錢」
 //   4. 物品價格是所屬那組中間值的 5 倍以上或 1/5 以下 → 換成同類物品中、中間值最接近它價格的那組樣式
-// 調整只寫在檔案最上面，原內容一字不改。網頁與 node 測試共用：twFilter(D, 原檔文字, 原檔名, { area }) → { text, name, changes, stats }
+// 調整只寫在檔案最上面，原內容一字不改。網頁與 node 測試共用：twFilter(D, 原檔文字, 原檔名) → { text, name, changes, stats }
 (function (root) {
   const RATIO = 5        // 差幾倍以上才調整
   const MIN_GROUP = 3    // 一種樣式至少要有幾個物品，才拿來推算價位、借給別的物品用（少於這個數，多半是作者給特定物品的專屬樣式，不動）
@@ -77,7 +77,7 @@
   const value = (it, dp) => { const c = it.chaos, d = it.divine; return c && (!d || c.vol24 >= d.vol24) ? c.sell : d ? d.sell * dp : 0 }
 
   function twFilter(D, original, fileName, opt = {}) {
-    const area = opt.area ?? 83
+    const area = 83 // 模擬高階地圖；實測文子各階段的結果不受區域等級影響，所以不讓玩家選
     const bom = original.charCodeAt(0) === 0xfeff
     const body = bom ? original.slice(1) : original
     const blocks = parse(body)
@@ -132,7 +132,7 @@
     const hour = `${s.getFullYear()}/${p(s.getMonth() + 1)}/${p(s.getDate())} ${p(s.getHours())}:00–${p(e.getHours())}:00`
     const out = [
       '# ==================================================',
-      `# 台服價格調整（${D.league}，依 ${hour} 為止的台服通貨交換成交價，模擬區域等級 ${area}）`,
+      `# 台服價格調整（${D.league}，依 ${hour} 為止的台服通貨交換成交價）`,
       `# 只調整台服價格和原作者分級差 ${RATIO} 倍以上的 ${changes.length} 種物品，改用原作者自己同價位物品的樣式；`,
       '# 其他物品、以及以下原過濾器內容都沒有修改。價格會變，想更新請到網站重新產生。',
       '# ==================================================',
