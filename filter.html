@@ -158,7 +158,7 @@ function run(scroll = true) {
     <div class="sum"><div><b>${r.stats.items}</b><small>判斷的物品</small></div><div><b>${r.stats.items - r.applied}</b><small>照原樣${kept ? `（含不更改 ${kept}）` : ''}</small></div>
       <div><b style="color:var(--up)">${up.filter(on).length}</b><small>升級</small></div><div><b style="color:var(--dn)">${dn.filter(on).length}</b><small>降級</small></div></div>
     ${r.applied ? `<div class="dl"><button type="button" id="save">⬇ 下載調整後的過濾器</button><span>檔名和上傳的相同，放回資料夾會取代原檔（要留原檔請先備份）<br>遊戲裡：選項 › 遊戲 › 物品過濾器</span></div>
-    <ul class="note"><li>和同樣式物品的台服價差 5 倍以上才調整</li><li>升級更醒目；降級較不起眼，但不會隱藏</li><li>不調整：混沌石、神聖石、幻色石、崇高石、點金石、改造石、命運卡</li><li>不想改的，取消那一列的「套用」（只限這次下載）</li></ul>`
+    <ul class="note"><li>和同樣式物品的台服價差 5 倍以上才調整</li><li>升級更醒目；降級較不起眼，但不會隱藏</li><li>不調整：混沌石、神聖石、幻色石、崇高石、點金石、改造石、豐裕牌組、命運卡</li><li>不想改的，取消那一列的「套用」（只限這次下載）</li></ul>`
     : r.changes.length ? '<div class="msg">全部選了不更改，不需要下載。</div>' : '<div class="msg">分級和台服行情相符，不需要調整。</div>'}
     ${sect('up', '升級', '台服比作者分級貴很多，改得更醒目', up)}
     ${sect('dn', '降級', '台服比作者分級便宜很多，改得較不起眼', dn)}`
