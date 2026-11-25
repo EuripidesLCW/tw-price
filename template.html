@@ -528,8 +528,18 @@ function noPrice(text) {
   $('clip').innerHTML = `<b>${esc(first)}</b><span class="hint">通貨交換裡沒有這個物品<br>只有能用通貨交換的才有價格</span>`
 }
 
-// 還沒貼過時的提示。疊加模式不用切回來，所以兩種講法不一樣
-const clipHint = () => { $('clip').innerHTML = OVERLAY
+/*
+  有沒有本機的剪貼簿連動。
+
+  **跟版面無關**：疊加小窗（?overlay=1）是單螢幕蓋在遊戲上用的，
+  雙螢幕的人會想把完整版面放在第二螢幕——那同樣需要 Ctrl+C 直接跳，
+  只是不需要縮版面也不需要置頂。所以判斷依據是「是不是本機伺服器」，
+  不是「是不是疊加模式」。
+*/
+const LIVE = /^(127\.0\.0\.1|localhost)$/.test(location.hostname)
+
+// 還沒貼過時的提示：有連動就不必切回來，沒有就得自己貼上
+const clipHint = () => { $('clip').innerHTML = LIVE
   ? '<b>在遊戲裡按 Ctrl+C 複製物品</b><span class="hint">就會跳到那一個</span>'
   : '<b>在遊戲裡 Ctrl+C 複製物品</b><span class="hint">切回這一頁按 Ctrl+V<br>直接跳到它的價格</span>' }
 clipHint()
@@ -549,9 +559,9 @@ if (OVERLAY) {
   document.title = '台服通貨價格 疊加' // overlay.mjs 靠標題裡的「疊加」找到這個視窗來置頂
   compactCheck() // 一進來就收起分類，不用等捲動
 }
-// 入口 2：疊加模式輪詢本機伺服器的剪貼簿內容。
+// 入口 2：輪詢本機伺服器讀到的剪貼簿。
 // 只在本機跑時輪詢：GitHub Pages 上沒有 /clip，不先擋掉會每 400ms 404 一次。
-if (OVERLAY && /^(127\.0\.0\.1|localhost)$/.test(location.hostname)) {
+if (LIVE) {
   let seen = 0
   const tick = async () => {
     try {

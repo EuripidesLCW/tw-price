@@ -16,9 +16,13 @@
 // 開著交換面板挑物品 → Ctrl+C → 這裡顯示成交均價 → 回頭看面板的 1:11 開價划不划算。
 // 面板給的是現在的「掛賣價」，這裡給的是最近的「成交均價」，兩個要一起看。
 //
-// 用法：node overlay.mjs [--port 8766] [--no-top] [--no-window]
+// 用法：node overlay.mjs [--wide] [--port 8766] [--no-top] [--no-window]
+//   --wide       雙螢幕用：完整版面、大視窗、不置頂（Ctrl+C 連動照樣有）
 //   --no-top     不要置頂（想自己排視窗時用）
 //   --no-window  不要開瀏覽器，只跑伺服器（想用自己開的分頁，或要測的時候用）
+//
+// 單螢幕 → 預設的小窗置頂，蓋在遊戲上。
+// 雙螢幕 → --wide，把完整版面丟到第二螢幕；Ctrl+C 連動跟版面無關，兩種都有。
 import { createServer } from 'node:http'
 import { spawn, execFile } from 'node:child_process'
 import fs from 'node:fs'
@@ -138,14 +142,17 @@ function openWindow() {
   }
   // 專用的 user-data-dir：才會是獨立視窗（不會併進你原本開著的瀏覽器），
   // 而且 Chrome 會記住這個視窗的大小位置，下次打開還在同一個地方
-  const profile = path.join(here, 'cache', 'overlay-profile')
+  // 兩種版面各自記住自己的視窗大小位置，所以用不同的 profile 資料夾
+  const wide = process.argv.includes('--wide')
+  const profile = path.join(here, 'cache', wide ? 'wide-profile' : 'overlay-profile')
   const child = spawn(exe, [
-    `--app=http://127.0.0.1:${PORT}/?overlay=1`,
+    `--app=http://127.0.0.1:${PORT}/${wide ? '' : '?overlay=1'}`,
     `--user-data-dir=${profile}`,
-    '--window-size=420,820',
+    wide ? '--window-size=1100,900' : '--window-size=420,820',
     '--no-first-run', '--no-default-browser-check', '--disable-features=Translate',
   ], { detached: false, stdio: 'ignore' })
-  if (!process.argv.includes('--no-top')) {
+  // --wide 是放在第二螢幕的，置頂只會擋到那個螢幕上的別的東西
+  if (!wide && !process.argv.includes('--no-top')) {
     execFile('powershell', ['-NoProfile', '-Command', PS_TOPMOST], { windowsHide: true },
       (e, out) => console.log((out || '').trim() || (e ? '置頂失敗：' + e.message : '')))
   }
