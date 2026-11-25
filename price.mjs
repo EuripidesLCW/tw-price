@@ -13,7 +13,8 @@ fs.mkdirSync(path.join(cache, 'hours'), { recursive: true })
 const API = 'https://webtw.poecdn.com/api/currency-exchange/'
 const CHAOS = 'Metadata/Items/Currency/CurrencyRerollRare'
 const DIVINE = 'Metadata/Items/Currency/CurrencyModValues'
-const HOURS = 24
+const HOURS = 24 // 價格、熱門用最近 24 小時
+const HIST = 168 // 漲跌、走勢圖用最近 7 天
 
 const getJson = async url => {
   const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
@@ -37,11 +38,15 @@ const hour = async ts => {
   return j
 }
 
-// 1. 每小時摘要：從最近一個已發布的小時往回抓 24 小時
+// 1. 每小時摘要：從最近一個已發布的小時往回抓 7 天（抓過的會存起來，平常每次只需抓新的一兩小時）
 let latest = Math.floor(Date.now() / 3.6e6) * 3600 - 3600
 while (!(await hour(latest)).markets.length) latest -= 3600
-const stamps = Array.from({ length: HOURS }, (_, i) => latest - i * 3600)
-const digests = await Promise.all(stamps.map(hour))
+const stamps = Array.from({ length: HIST }, (_, i) => latest - i * 3600)
+const all = []
+for (let i = 0; i < HIST; i += 12) // 一次 12 個，不要同時對官方發太多請求
+  all.push(...await Promise.all(stamps.slice(i, i + 12).map((ts, j) =>
+    i + j < HOURS ? hour(ts) : hour(ts).catch(() => ({ markets: [] }))))) // 24 小時以前的抓不到只影響走勢圖，不讓整次更新失敗
+const digests = all.slice(0, HOURS)
 for (const f of fs.readdirSync(path.join(cache, 'hours'))) if (+f.split('.')[0] < latest - 7 * 86400) fs.rmSync(path.join(cache, 'hours', f))
 
 const rows = digests.flatMap(d => d.markets)
@@ -141,6 +146,36 @@ const items = Object.entries(pair).map(([id, p]) => {
 }).filter(it => it.chaos || it.divine)
 const divinePrice = pair[DIVINE].chaos.price
 
+// 漲跌與走勢（只用實際成交，混沌石、神聖石各自算）：
+//   d1 = 近 24 小時的成交均價 比 前一天（24～48 小時前）漲跌幾 %；d7 = 比 一週前（144～168 小時前）
+//   兩段都至少要有 2 個小時有成交才算，避免一兩筆零星成交造成誇張的漲跌
+//   spark = 7 天內每 6 小時的成交均價（舊→新，沒成交的時段是 null）
+//   成交均價 = 該段時間付出量總和 ÷ 換得量總和（成交量大的小時影響較大，單筆掛錯的異常成交影響小）
+const sums = {} // 「物品|chaos/divine」→ 第 i 小時 [物品量, 通貨量]
+for (const [i, d] of all.entries()) for (const m of d.markets) {
+  if (m.league !== league || !Object.values(m.volume_traded).every(v => v > 0)) continue
+  const [a, b] = m.market_pair
+  for (const [x, y] of [[a, b], [b, a]]) {
+    if (!kind(y)) continue
+    const h = ((sums[x + '|' + kind(y)] ??= [])[i] ??= [0, 0])
+    h[0] += m.volume_traded[x]; h[1] += m.volume_traded[y]
+  }
+}
+const vwap = (s, from, to) => {
+  let x = 0, y = 0, n = 0
+  for (let i = from; i < to; i++) if (s[i]) { x += s[i][0]; y += s[i][1]; n++ }
+  return n ? { p: y / x, n } : null
+}
+for (const it of items) for (const k of ['chaos', 'divine']) {
+  const q = it[k], s = sums[it.id + '|' + k]
+  if (!q || !s) continue
+  const now = vwap(s, 0, 24)
+  const chg = before => now?.n >= 2 && before?.n >= 2 ? Math.round((now.p / before.p - 1) * 1000) / 10 : undefined
+  q.d1 = chg(vwap(s, 24, 48))
+  q.d7 = chg(vwap(s, 144, 168))
+  q.spark = Array.from({ length: HIST / 6 }, (_, j) => vwap(s, HIST - 6 * (j + 1), HIST - 6 * j)).map(v => v ? +v.p.toPrecision(4) : null)
+}
+
 // 分類按鈕圖示（台服交易資料 id）；含多種物品的分類放每種的代表圖；沒列的分類由網頁取成交量最大的物品
 const CAT_ICONS = {
   通貨: ['divine'],
@@ -183,7 +218,7 @@ for (const [n, p] of placed) if (!traded.has(n)) {
 }
 
 // 4. 產生網頁
-const data = { generated: Date.now(), catIcons, league, divinePrice, divineRange: pair[DIVINE].chaos.range, updated: (latest + 3600) * 1000, hours: HOURS, groups, hot, hot1, cats: EX_CATS.filter(c => items.some(i => i.cat === c)), items }
+const data = { generated: Date.now(), catIcons, league, divinePrice, divineRange: pair[DIVINE].chaos.range, updated: (latest + 3600) * 1000, hours: HOURS, hist: HIST, groups, hot, hot1, cats: EX_CATS.filter(c => items.some(i => i.cat === c)), items }
 // 資料放 data.js（網頁會定時重新載入它來自動更新）；先寫暫存檔再改名，避免網頁讀到寫一半的檔案
 fs.writeFileSync(path.join(here, 'data.js.tmp'), 'window.TW_DATA = ' + JSON.stringify(data))
 fs.renameSync(path.join(here, 'data.js.tmp'), path.join(here, 'data.js'))

@@ -20,12 +20,14 @@
   color-scheme: dark;
   --bg: #15130f; --panel: #1d1a15; --line: #2e2a22; --text: #ece5d6; --muted: #8f8674;
   --accent: #e0a458; --accent-soft: #3a2d1b; --good: #7fbf8c; --stale: #5d564a;
+  --up: #e8796f; --dn: #7fbf8c;
 }
 :root[data-theme="light"] {
   color-scheme: light;
   /* 低亮度暖灰，避免大面積近白色造成眼睛疲勞；文字對比皆 ≥ 4.5:1 */
   --bg: #e7e2d8; --panel: #efebe3; --line: #d3cbbc; --text: #2e2a24; --muted: #6b6255;
   --accent: #8c5017; --accent-soft: #e2d3bd; --good: #3f7a4b; --stale: #9a907f;
+  --up: #b0362b; --dn: #2f6e3c;
 }
 /* 主題開關：圖示框和圓鈕同樣大小、同樣位置（左 3px／右 3px，24×24），所以圖示一定在圓鈕正中心 */
 .theme { position: relative; flex: none; width: 58px; height: 32px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); cursor: pointer; padding: 0; }
@@ -142,8 +144,16 @@ h3::after { content: ""; flex: 1; border-top: 1px solid var(--line); order: 1; }
 .card .more b { color: var(--text); font-weight: 500; }
 .card .more > div + div { margin-top: 8px; }
 .card .more dl { display: grid; grid-template-columns: auto 1fr; gap: 1px 10px; margin: 2px 0 0; }
-.card .more dt { color: var(--muted); }
+.card .more dt { color: var(--muted); white-space: nowrap; }
 .card .more dd { margin: 0; color: var(--text); }
+/* 漲跌（▲紅漲 ▼綠跌）與 7 天走勢圖 */
+.chg { font-style: normal; font-size: 11px; font-weight: 500; white-space: nowrap; }
+.chg.up { color: var(--up); } .chg.dn { color: var(--dn); } .chg.flat, .chg.na { color: var(--muted); font-weight: 400; }
+.card .more dd .chg { display: inline-block; margin-right: 8px; }
+.spark { grid-column: 1 / -1; margin: 4px 0 0; }
+.spark svg { display: block; width: 100%; height: 36px; overflow: visible; color: var(--accent); }
+.spark path { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.spark .sk { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
 .nw { white-space: nowrap; }
 .card .more .none b { font-weight: 500; }
 .ico { width: 18px; height: 18px; }
@@ -282,7 +292,7 @@ function paint() {
   $('league').textContent = D.league
   $('rate').innerHTML = `<span class="pair">${img(divine)} 1 = <b>${fmt(D.divinePrice)}</b> ${img(chaos)}</span><small>${span(0)} 成交區間 ${fmt(D.divineRange[0])}～${fmt(D.divineRange[1])}${odd(D.divinePrice, D.divineRange) ? '，' + odd(D.divinePrice, D.divineRange) : ''}</small>`
   $('meta').textContent = `價格是遊戲內通貨交換的實際成交均價，混沌石價和神聖石價各自來自實際成交，不互相換算。`
-    + `價格呈灰色：成交時段早於資料時間，點開可看是哪個時段。「售完」：資料時間內沒有人在賣。「無成交」：${D.hours} 小時內沒有成交，因此沒有價格。分類與順序與遊戲相同。`
+    + `價格呈灰色：成交時段早於資料時間，點開可看是哪個時段。「售完」：資料時間內沒有人在賣。「無成交」：${D.hours} 小時內沒有成交，因此沒有價格。▲▼：近 24 小時的成交均價比前一天（紅漲綠跌），點開物品可看 7 天走勢。分類與順序與遊戲相同。`
   const chips = ['所有', '熱門', ...D.cats]
   if (!chips.includes(cat)) cat = '所有'
   $('chips').innerHTML = chips.map(c => `<button class="chip" data-cat="${esc(c)}" aria-pressed="${c === cat}"><span class="ic">${catIcon(c).map(src => `<img src="${src}" alt="">`).join('')}</span>${esc(c)}</button>`).join('')
@@ -359,7 +369,10 @@ const unit = { get chaos() { return ['混沌石', chaos] }, get divine() { retur
 const range = ([a, b]) => a === b ? fmt(a) : `${fmt(a)}～${fmt(b)}`
 const num = ([a, b]) => a === b ? a.toLocaleString() : `${a.toLocaleString()}～${b.toLocaleString()}`
 // 卡片上只放價格；比例、成交量、在售量收在展開區
-const px = (q, k) => q ? `<span class="${q.soldOut ? 'out' : q.ago ? 'stale' : ''}" title="${unit[k][0]}價${q.soldOut ? `（${span(0)} 沒有人在賣）` : q.ago ? `（${span(q.ago)} 的成交）` : ''}">${img(unit[k][1])}${fmt(q.price)}</span>` : `<span class="na" title="24 小時內沒有${unit[k][0]}成交">${img(unit[k][1])}—</span>`
+// 漲跌幅：▲12% ／ ▼3.5% ／ 不到 1% 寫「持平」；沒資料（成交太少）不顯示
+const pct = v => Math.abs(v) >= 10 ? Math.round(Math.abs(v)) : Math.abs(v).toFixed(1)
+const chg = (v, label = '') => v == null ? '' : Math.abs(v) < 1 ? `<i class="chg flat">${label}持平</i>` : `<i class="chg ${v > 0 ? 'up' : 'dn'}">${label}${v > 0 ? '▲' : '▼'}${pct(v)}%</i>`
+const px = (q, k) => q ? `<span class="${q.soldOut ? 'out' : q.ago ? 'stale' : ''}" title="${unit[k][0]}價${q.soldOut ? `（${span(0)} 沒有人在賣）` : q.ago ? `（${span(q.ago)} 的成交）` : ''}${q.d1 != null ? `；近 24 小時成交均價比前一天${Math.abs(q.d1) < 1 ? '持平' : (q.d1 > 0 ? '漲 ' : '跌 ') + pct(q.d1) + '%'}` : ''}">${img(unit[k][1])}${fmt(q.price)}${chg(q.d1)}</span>` : `<span class="na" title="24 小時內沒有${unit[k][0]}成交">${img(unit[k][1])}—</span>`
 // 展開區：每種通貨一個小表格（均價／區間／成交／在售）。
 // 均價、區間、成交量來自「最近一次有成交的時段」（可能早於資料時間）；在售是資料時間的狀況，各自標出時段。
 // 不到 1 個通貨的物品寫成「1 混沌石 = N 個」，不用自己換算
@@ -373,7 +386,22 @@ const detail = (q, k, it) => {
   const stock = q.soldOut ? `<span class="warn">0 個（${spanH(0)} 沒有人在賣）</span>`
     : q.stock[0] === q.stock[1] ? `${num(q.stock)} 個（${spanH(0)}）` : `${num(q.stock)} 個（${spanH(0)} 期間最少～最多）`
   return `<div><b>${u}價</b><dl><dt>均價</dt><dd>${avg}</dd><dt>區間</dt><dd>${rng}</dd>`
-    + `<dt>成交</dt><dd>${q.vol[0].toLocaleString()} 個（${spanH(q.ago)}）</dd><dt>在售</dt><dd>${stock}</dd></dl></div>`
+    + `<dt>成交</dt><dd>${q.vol[0].toLocaleString()} 個（${spanH(q.ago)}）</dd><dt>在售</dt><dd>${stock}</dd>${trend(q, u, cheap)}</dl></div>`
+}
+// 漲跌：近 24 小時的成交均價，和前一天、一週前各 24 小時的成交均價相比
+// 走勢圖：7 天內每 6 小時的成交均價（線往上＝變貴）；沒成交的時段留空不連線
+const trend = (q, u, cheap) => {
+  if (!q.spark) return ''
+  const rows = `<dt title="近 24 小時的成交均價，和前一天、一週前同樣 24 小時的成交均價相比">漲跌</dt><dd>${q.d1 == null && q.d7 == null ? '<span class="chg na">成交太少，不計算</span>' : chg(q.d1, '比前一天 ') + chg(q.d7, '比一週前 ')}</dd>`
+  const pts = q.spark.map((v, i) => [i, v]).filter(p => p[1] != null)
+  if (pts.length < 2) return rows
+  const vs = pts.map(p => p[1]), lo = Math.min(...vs), hi = Math.max(...vs), n = q.spark.length - 1
+  const X = i => (i / n * 100).toFixed(1), Y = v => (hi === lo ? 15 : 28 - (v - lo) / (hi - lo) * 26).toFixed(1)
+  let d = '', prev = -9
+  for (const [i, v] of pts) { d += i === prev + 1 ? `L${X(i)} ${Y(v)}` : `M${X(i)} ${Y(v)}l0 0`; prev = i } // l0 0：前後都沒成交的單點也畫成圓點
+  const rng = cheap ? `1 ${u} 換 ${range([1 / hi, 1 / lo])} 個` : `${range([lo, hi])} ${u}`
+  return rows + `<dt>7 天走勢</dt><dd>${rng}</dd><div class="spark" title="每 6 小時的成交均價，空白＝該時段沒有成交"><svg viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true"><path d="${d}"/></svg>`
+    + `<div class="sk"><span>${md(new Date(D.updated - D.hist * 3600e3))}</span><span>${md(new Date(D.updated))}</span></div></div>`
 }
 const key = it => it.noTrade ? -1 : it.chaos?.price ?? it.divine.price * D.divinePrice // 只用來排序，無成交排最後
 const soldOut = it => !it.noTrade && [it.chaos, it.divine].filter(Boolean).every(q => q.soldOut)
