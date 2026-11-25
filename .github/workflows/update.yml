@@ -46,7 +46,7 @@ jobs:
       # 小程式：原始碼與編好的 exe 都在 app/（exe 由 app/build-exe.cmd 以 Windows 內建編譯器產生）
       # app-version.json：小程式的自動更新會讀它（版本號取自原始碼的 Version 常數，校驗碼由 exe 算出，簽章由發布者本機產生）
       - run: |
-          mkdir _site && cp index.html data.js app/TwPriceOverlay.exe _site/
+          mkdir _site && cp index.html data.js filter.html filter.js app/TwPriceOverlay.exe _site/
           (cd app && zip -q -X ../_site/TwPriceOverlay.zip TwPriceOverlay.exe 使用說明.txt)
           ver=$(sed -n 's/.*const string Version = "\([^"]*\)".*/\1/p' app/TwPriceOverlay.cs)
           sha=$(sha256sum app/TwPriceOverlay.exe | cut -d' ' -f1)

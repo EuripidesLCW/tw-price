@@ -87,6 +87,8 @@ for (const c of stat.result) {
     byArt.set(art, { name: e.text, icon: 'https://webtw.poecdn.com' + e.image })
   }
 }
+// 遊戲過濾器裡的物品類別名稱（產生台服價格過濾器時，用來模擬遊戲比對 Class 條件）
+const FILTER_CLASS = { StackableCurrency: 'Stackable Currency', MapFragment: 'Map Fragments', DivinationCard: 'Divination Cards', DelveStackableSocketableCurrency: 'Delve Stackable Socketable Currency', VaultKey: 'Vault Keys' }
 const info = id => {
   const it = base[id]
   if (!it) return { name: id.split('/').pop(), cat: '其他', id }
@@ -94,7 +96,7 @@ const info = id => {
   const a = artUses.get(art) === 1 ? byArt.get(art) : null
   const z = zhByEn.get(it.name)
   const name = a?.name ?? z?.name ?? it.name
-  return { name, en: it.name, icon: a?.icon ?? z?.icon, cat: exCat(id, it, catByText.get(name)), id, ...placed.get(norm(name)) }
+  return { name, en: it.name, cls: FILTER_CLASS[it.item_class], icon: a?.icon ?? z?.icon, cat: exCat(id, it, catByText.get(name)), id, ...placed.get(norm(name)) }
 }
 // 遊戲內的分頁 → 小分組 → 物品順序（layout.json，照遊戲截圖抄錄）優先；沒列到的物品才用下面的規則分頁
 const norm = t => t.replace(/汙/g, '污')

@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>台服價格過濾器</title>
+<meta name="description" content="上傳你正在用的物品過濾器，依台服通貨交換成交價，只調整分級差很多的物品，並列出每一項改動。">
+<script>try { if (localStorage.getItem("theme") === "light") document.documentElement.dataset.theme = "light" } catch {}</script>
+<style>
+[hidden] { display: none !important; }
+:root {
+  color-scheme: dark;
+  --bg: #15130f; --panel: #1d1a15; --line: #2e2a22; --text: #ece5d6; --muted: #8f8674;
+  --accent: #e0a458; --accent-soft: #3a2d1b; --up: #e8796f; --dn: #7fbf8c; --warn: #e8796f;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #e7e2d8; --panel: #efebe3; --line: #d3cbbc; --text: #2e2a24; --muted: #6b6255;
+  --accent: #8c5017; --accent-soft: #e2d3bd; --up: #b0362b; --dn: #2f6e3c; --warn: #b0362b;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif; }
+main { max-width: 1080px; margin: 0 auto; padding: 20px 16px 64px; }
+a { color: var(--accent); }
+.back { font-size: 14px; text-decoration: none; }
+h1 { font-size: 26px; margin: 8px 0 6px; }
+.lead { color: var(--muted); margin: 0 0 18px; max-width: 46em; }
+.lead b { color: var(--text); font-weight: 600; }
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; margin: 0 0 18px; padding: 0; list-style: none; counter-reset: s; }
+.steps li { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px 10px 44px; position: relative; color: var(--muted); font-size: 14px; }
+.steps li::before { counter-increment: s; content: counter(s); position: absolute; left: 14px; top: 10px; width: 20px; height: 20px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 700; display: grid; place-items: center; }
+.steps b { color: var(--text); font-weight: 600; }
+.drop { display: grid; place-items: center; gap: 4px; text-align: center; padding: 28px 16px; border: 2px dashed var(--line); border-radius: 14px; background: var(--panel); cursor: pointer; transition: border-color .15s, background .15s; }
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop strong { font-size: 17px; color: var(--accent); }
+.drop span { color: var(--muted); font-size: 13px; }
+.drop input { display: none; }
+.opts { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 12px 0 0; color: var(--muted); font-size: 14px; }
+.opts select { font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; }
+.msg { margin: 16px 0 0; padding: 12px 16px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); }
+.msg.err { border-color: var(--warn); color: var(--warn); }
+.res { margin-top: 26px; }
+.file { color: var(--muted); font-size: 14px; margin: 0 0 12px; word-break: break-all; }
+.sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.sum div { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+.sum b { display: block; font-size: 24px; font-variant-numeric: tabular-nums; line-height: 1.3; }
+.sum small { color: var(--muted); font-size: 13px; }
+.dl { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 14px 16px; border: 1px solid var(--accent); border-radius: 12px; background: var(--accent-soft); margin-bottom: 8px; }
+.dl button { font: inherit; font-weight: 700; font-size: 15px; color: #1a1408; background: var(--accent); border: 0; border-radius: 8px; padding: 8px 16px; cursor: pointer; }
+:root[data-theme="light"] .dl button { color: #fff; }
+.dl span { color: var(--muted); font-size: 13px; flex: 1 1 260px; }
+.dl code { color: var(--text); }
+.note { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+h2 { font-size: 19px; margin: 30px 0 2px; display: flex; gap: 10px; align-items: baseline; }
+h2 small { font-size: 13px; color: var(--muted); font-weight: 400; }
+h2 .up { color: var(--up); } h2 .dn { color: var(--dn); }
+.sub { color: var(--muted); margin: 0 0 10px; font-size: 14px; }
+.tw { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+table { border-collapse: collapse; width: 100%; min-width: 820px; }
+th { font-weight: 400; color: var(--muted); text-align: left; font-size: 13px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--panel); }
+td { padding: 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+.it { display: flex; gap: 10px; align-items: center; min-width: 180px; }
+.it img { width: 36px; height: 36px; object-fit: contain; flex: none; }
+.it small { display: block; color: var(--muted); font-size: 12px; }
+.v { white-space: nowrap; font-weight: 600; font-variant-numeric: tabular-nums; }
+.arr { color: var(--muted); font-size: 20px; padding-top: 16px; }
+/* 地面：不管網頁深淺主題，都用遊戲裡的暗色地面，顏色才準 */
+.ground { display: inline-block; background: #0c0a08; padding: 6px; border-radius: 6px; }
+.lbl { display: inline-block; padding: 1px 10px; border: 2px solid transparent; line-height: 1.35; white-space: nowrap; }
+.lbl.hid { color: #888; background: transparent; border: 1px dashed #555; font-size: 13px; }
+.notes { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+.notes i { font-style: normal; margin: 0 6px; opacity: .5; }
+.beam { display: inline-block; width: 4px; height: 12px; background: var(--c); margin-right: 4px; vertical-align: -1px; border-radius: 2px; box-shadow: 0 0 6px var(--c); }
+.why { font-size: 12px; color: var(--muted); opacity: .85; margin-top: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="./">← 回台服通貨價格</a>
+  <h1>台服價格過濾器</h1>
+  <p class="lead">選你<b>現在正在用</b>的物品過濾器（文子、NeverSink 或任何一份都可以），依台服通貨交換的成交價，只調整「台服價格和作者分級差很多」的物品，其他都照原作者。調整前會列出每一項改動和台服價格，確認後再下載。<b>檔案只在你的瀏覽器裡處理，不會上傳。</b></p>
+  <ol class="steps">
+    <li><b>選檔案</b>：過濾器在「文件 › My Games › Path of Exile」，副檔名是 <code>.filter</code></li>
+    <li><b>看清單</b>：每個被調整的物品，原本和調整後掉在地上的樣子</li>
+    <li><b>下載</b>：新檔放回同一個資料夾，在遊戲「選項 › 遊戲 › 物品過濾器」選它</li>
+  </ol>
+
+  <label class="drop" id="drop">
+    <input type="file" id="file" accept=".filter">
+    <strong>選擇過濾器檔案</strong>
+    <span>或把 .filter 檔拖到這裡</span>
+  </label>
+  <div class="opts">
+    <label>你現在刷的地方
+      <select id="area">
+        <option value="83">高階地圖（T11～T16）</option>
+        <option value="75">低階地圖（T1～T10）</option>
+        <option value="45">劇情</option>
+      </select>
+    </label>
+    <span id="dataTime"></span>
+  </div>
+  <div class="msg err" id="err" hidden></div>
+
+  <section class="res" id="res" hidden></section>
+</main>
+<script src="data.js"></script>
+<script src="filter.js"></script>
+<script>
+const $ = id => document.getElementById(id)
+const D = window.TW_DATA
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+const hh = t => String(new Date(t).getHours()).padStart(2, '0') + ':00'
+const md = t => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()}` }
+$('dataTime').textContent = `價格資料：${md(D.updated - 3600e3)} ${hh(D.updated - 3600e3)}–${hh(D.updated)} 的成交（每小時更新）`
+
+const fmt = v => v >= D.divinePrice ? (v / D.divinePrice).toFixed(v >= 10 * D.divinePrice ? 0 : 1) + ' 神聖石' : v >= 10 ? Math.round(v) + ' 混沌石' : +v.toPrecision(2) + ' 混沌石'
+const CN = { Red: '紅', Green: '綠', Blue: '藍', Brown: '棕', White: '白', Yellow: '黃', Cyan: '青', Grey: '灰', Orange: '橘', Pink: '粉紅', Purple: '紫' }
+const SH = { Circle: '圓形', Diamond: '菱形', Hexagon: '六角形', Square: '方形', Star: '星形', Triangle: '三角形', Cross: '十字', Moon: '月亮', Raindrop: '水滴', Kite: '風箏', Pentagon: '五角形', UpsideDownHouse: '倒三角屋' }
+const nums = l => (l || '').split(' ').slice(1).map(Number)
+const rgba = (l, def) => { const v = nums(l); return v.length >= 3 ? `rgba(${v[0]},${v[1]},${v[2]},${((v[3] ?? 255) / 255).toFixed(2)})` : def }
+// 照過濾器設定畫出物品掉在地上的樣子（大小、顏色是模擬，和遊戲會有些微差異）
+function look(s, name) {
+  if (!s.show) return '<div class="ground"><span class="lbl hid">隱藏（地上不顯示）</span></div>'
+  const st = s.style, fs = Math.max(12, Math.min(26, Math.round((nums(st.SetFontSize)[0] || 32) * 0.42)))
+  const css = `color:${rgba(st.SetTextColor, 'rgb(170,158,130)')};background:${rgba(st.SetBackgroundColor, 'rgba(0,0,0,.75)')};border-color:${rgba(st.SetBorderColor, 'transparent')};font-size:${fs}px`
+  const notes = []
+  const snd = st.CustomAlertSound || st.CustomAlertSoundOptional, ps = st.PlayAlertSound || st.PlayAlertSoundPositional
+  notes.push(snd ? '🔊 ' + esc((snd.match(/"([^"]*)"/)?.[1] ?? '').split(/[\\/]/).pop()) : ps ? '🔊 遊戲內建音效 ' + nums(ps)[0] : '🔇 無音效')
+  if (st.PlayEffect) { const c = st.PlayEffect.split(' ')[1]; notes.push(`<span class="beam" style="--c:${esc(c.toLowerCase())}"></span>${CN[c] ?? esc(c)}色光柱`) }
+  if (st.MinimapIcon && nums(st.MinimapIcon)[0] >= 0) { const [, sz, c, sh] = st.MinimapIcon.split(' '); notes.push(`小地圖：${['大', '中', '小'][sz] ?? ''}${CN[c] ?? esc(c)}${SH[sh] ?? esc(sh)}`) }
+  return `<div class="ground"><span class="lbl" style="${css}">${esc(name)}</span></div><div class="notes">${notes.join('<i>·</i>')}</div>`
+}
+const row = c => `<tr><td><div class="it"><img src="${esc(c.item.icon)}" alt="" loading="lazy"><div><b>${esc(c.item.name)}</b><small>${esc(c.item.en)}</small></div></div></td>
+  <td class="v">${fmt(c.value)}</td>
+  <td>${look(c.from, c.item.name)}<div class="why">原本和它同樣式的物品，台服中間價約 ${fmt(c.from.med)}</div></td>
+  <td class="arr">→</td>
+  <td>${look(c.to, c.item.name)}<div class="why">改用作者給「${esc(c.to.sample.name)}」的樣式（這類物品台服中間價約 ${fmt(c.to.med)}）</div></td></tr>`
+const sect = (cls, t, d, list) => list.length ? `<h2><span class="${cls}">${t}</span><small>${list.length} 種</small></h2><p class="sub">${d}</p>
+  <div class="tw"><table><thead><tr><th>物品</th><th>台服價格</th><th>原本的樣子</th><th></th><th>調整後</th></tr></thead><tbody>${list.sort((a, b) => b.value - a.value).map(row).join('')}</tbody></table></div>` : ''
+
+let current = null // { text, name }
+function run() {
+  if (!current) return
+  $('err').hidden = true
+  let r
+  try { r = twFilter(D, current.text, current.name, { area: +$('area').value }) }
+  catch (e) { $('res').hidden = true; $('err').textContent = e.message; $('err').hidden = false; return }
+  const up = r.changes.filter(c => c.up), dn = r.changes.filter(c => !c.up)
+  $('res').innerHTML = `<p class="file">檔案：${esc(current.name)}</p>
+    <div class="sum"><div><b>${r.stats.items}</b><small>有台服價格的物品</small></div><div><b>${r.stats.items - r.changes.length}</b><small>照原作者，不動</small></div>
+      <div><b style="color:var(--up)">${up.length}</b><small>升級：台服比作者分級貴很多</small></div><div><b style="color:var(--dn)">${dn.length}</b><small>降級：台服比作者分級便宜很多</small></div></div>
+    ${r.changes.length ? `<div class="dl"><button type="button" id="save">⬇ 下載調整後的過濾器</button><span>檔名：<code>${esc(r.name)}</code>。放回「文件 › My Games › Path of Exile」，在遊戲「選項 › 遊戲 › 物品過濾器」選它；原本的檔案不會被覆蓋。</span></div>
+    <p class="note">判斷方式：物品的台服價格，和原本同樣式物品的台服中間價差 5 倍以上才調整；升級一定變得更醒目、降級一定變得較不起眼，降級不會把東西隱藏。價格會變動，想更新就回來重新產生一次。</p>`
+    : '<div class="msg">這份過濾器的分級和台服行情差不多，沒有需要調整的物品。</div>'}
+    ${sect('up', '升級', '台服價格比原作者給的分級高很多，改成更醒目的樣式，避免漏撿。', up)}
+    ${sect('dn', '降級', '台服價格比原作者給的分級低很多，改成較不起眼的樣式（仍會顯示）。', dn)}`
+  $('res').hidden = false
+  const save = $('save')
+  if (save) save.onclick = () => {
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([r.text], { type: 'text/plain;charset=utf-8' }))
+    a.download = r.name
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+  }
+  $('res').scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+async function load(f) {
+  if (!f) return
+  if (!/\.filter$/i.test(f.name)) { $('err').textContent = '請選副檔名是 .filter 的過濾器檔案。'; $('err').hidden = false; return }
+  current = { text: await f.text(), name: f.name }
+  run()
+}
+$('file').onchange = e => load(e.target.files[0])
+$('area').onchange = run
+const drop = $('drop')
+drop.ondragover = e => { e.preventDefault(); drop.classList.add('over') }
+drop.ondragleave = () => drop.classList.remove('over')
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); load(e.dataTransfer.files[0]) }
+</script>
+</body>
+</html>
