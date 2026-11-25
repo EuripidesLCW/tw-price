@@ -15,6 +15,7 @@ const CHAOS = 'Metadata/Items/Currency/CurrencyRerollRare'
 const DIVINE = 'Metadata/Items/Currency/CurrencyModValues'
 const HOURS = 24 // 價格、熱門用最近 24 小時
 const HIST = 168 // 漲跌、走勢圖用最近 7 天
+const SELL_HOURS = 6 // 賣價參考取最近幾個有成交的小時
 
 const getJson = async url => {
   const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
@@ -135,13 +136,22 @@ for (const [i, d] of digests.entries()) for (const m of d.markets) {
     const q = ((pair[x] ??= {})[kind(y)] ??= { stock: stock ?? [0, 0], soldOut: !stock, vol24: 0 })
     const v = m.volume_traded
     q.vol24 += v[x]
-    if (q.price) continue // 已經取到更新的一小時
     const r = [m.lowest_ratio[y] / m.lowest_ratio[x], m.highest_ratio[y] / m.highest_ratio[x]]
-    Object.assign(q, { price: v[y] / v[x], range: [Math.min(...r), Math.max(...r)], vol: [v[x], v[y]], ago: i })
+    const avg = v[y] / v[x], lo = Math.min(...r), hi = Math.max(...r)
+    // 每小時「賣家賣到的最高價／最低價」；超過均價 3 倍或不到 1/3 視為掛錯單，改用均價
+    if ((q.h ??= []).length < SELL_HOURS) q.h.push([lo < avg / 3 ? avg : lo, hi > avg * 3 ? avg : hi])
+    if (q.price) continue // 已經取到更新的一小時
+    Object.assign(q, { price: avg, range: [lo, hi], vol: [v[x], v[y]], ago: i })
   }
 }
+// 賣價參考（給「我要賣，該開多少」用）：最近 SELL_HOURS（6）個有成交的小時（24 小時內）
+//   sell  = 每小時最高成交價的中位數 → 掛單慢慢等，多數小時都有人用這個價賣出
+//   quick = 每小時最低成交價的中位數 → 急著賣、直接賣給收購單大概拿到的價
+//   用中位數：單一小時的異常成交不會帶偏
+const median = a => { a = [...a].sort((x, y) => x - y); const n = a.length; return n % 2 ? a[n >> 1] : (a[n / 2 - 1] + a[n / 2]) / 2 }
 const items = Object.entries(pair).map(([id, p]) => {
   for (const k of ['chaos', 'divine']) if (!p[k]?.price) delete p[k]
+    else { const q = p[k]; Object.assign(q, { sell: median(q.h.map(h => h[1])), quick: median(q.h.map(h => h[0])), sellN: q.h.length }); delete q.h }
   return { ...info(id), ...p }
 }).filter(it => it.chaos || it.divine)
 const divinePrice = pair[DIVINE].chaos.price

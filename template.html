@@ -231,7 +231,7 @@ html.ov .tools { display: none; }
         <p><b>置頂小窗（免安裝）</b>：按「開啟置頂小窗」，會出現一個停在最上層的小視窗。遊戲裡游標指著物品按 <kbd>Ctrl</kbd>+<kbd>C</kbd>，再點一下小窗按 <kbd>Ctrl</kbd>+<kbd>V</kbd>，就會跳到它的價格。</p>
         <p><b>Windows 小程式（推薦）</b>：下載後解壓縮，雙擊 <code>TwPriceOverlay.exe</code>。之後遊戲裡游標指著物品按 <kbd>Ctrl</kbd>+<kbd>C</kbd>，小窗就自動跳到它的價格，不用切換視窗；小窗關掉了，按 <kbd>Ctrl</kbd>+<kbd>C</kbd> 也會自動再打開。在小窗裡勾選「開機時自動在背景啟動」，以後就不用再去點 exe。第一次執行若出現「Windows 已保護您的電腦」，按「其他資訊」→「仍要執行」。</p>
         <p>遊戲要設成「視窗化全螢幕」，小窗才蓋得上去。</p>
-        <p><b>卡片怎麼看</b>：上面一行是混沌石價、下面一行是神聖石價，都是 1 個物品的實際成交均價；旁邊的 ▲▼ 是近 24 小時比前一天的漲跌（紅漲綠跌）。點開卡片可以看：成交區間、成交數量、在售數量、比前一天／比一週前的漲跌，以及 7 天走勢圖。</p>
+        <p><b>卡片怎麼看</b>：上面一行是混沌石價、下面一行是神聖石價，都是 1 個物品的「掛單賣」參考價（最近幾小時賣家賣到的高價，願意等就賣得到，比成交均價高）；旁邊的 ▲▼ 是近 24 小時比前一天的漲跌（紅漲綠跌）。點開卡片可以看：「急著賣」大約拿到的價、成交均價、成交區間、成交數量、在售數量、比前一天／比一週前的漲跌，以及 7 天走勢圖。</p>
       </details>
     </div>
   </header>
@@ -297,8 +297,8 @@ let lastCheck = Date.now() // 本頁最後一次檢查新資料的時間
 function paint() {
   chaos = D.items.find(i => i.en === 'Chaos Orb'); divine = D.items.find(i => i.en === 'Divine Orb')
   $('league').textContent = D.league
-  $('rate').innerHTML = `<span class="pair">${img(divine)} 1 = <b>${fmt(D.divinePrice)}</b> ${img(chaos)}</span><small>${span(0)} 成交區間 ${fmt(D.divineRange[0])}～${fmt(D.divineRange[1])}${odd(D.divinePrice, D.divineRange) ? '，' + odd(D.divinePrice, D.divineRange) : ''}</small>`
-  $('meta').textContent = `價格是遊戲內通貨交換的實際成交均價，混沌石價和神聖石價各自來自實際成交，不互相換算。`
+  $('rate').innerHTML = `<span class="pair">${img(divine)} 1 = <b>${fmt(D.divinePrice)}</b> ${img(chaos)}</span><small>${span(0)} 成交均價，區間 ${fmt(D.divineRange[0])}～${fmt(D.divineRange[1])}${odd(D.divinePrice, D.divineRange) ? '，' + odd(D.divinePrice, D.divineRange) : ''}</small>`
+  $('meta').textContent = `卡片上的價格是「掛單賣」參考價：最近 6 個有成交的小時裡，每小時最高成交價的中位數，也就是願意掛單等待時大約賣得到的價（比成交均價高）。點開物品還有「急著賣」的價和成交均價。混沌石價和神聖石價各自來自實際成交，不互相換算。`
     + `價格呈灰色：成交時段早於資料時間，點開可看是哪個時段。「售完」：資料時間內沒有人在賣。「無成交」：${D.hours} 小時內沒有成交，因此沒有價格。▲▼：近 24 小時的成交均價比前一天（紅漲綠跌），點開物品可看 7 天走勢。分類與順序與遊戲相同。`
   const chips = ['所有', '熱門', ...D.cats]
   if (!chips.includes(cat)) cat = '所有'
@@ -379,7 +379,7 @@ const num = ([a, b]) => a === b ? a.toLocaleString() : `${a.toLocaleString()}～
 // 漲跌幅：▲12% ／ ▼3.5% ／ 不到 1% 寫「持平」；沒資料（成交太少）不顯示
 const pct = v => Math.abs(v) >= 10 ? Math.round(Math.abs(v)) : Math.abs(v).toFixed(1)
 const chg = (v, label = '') => v == null ? '' : Math.abs(v) < 1 ? `<i class="chg flat">${label}持平</i>` : `<i class="chg ${v > 0 ? 'up' : 'dn'}">${label}${v > 0 ? '▲' : '▼'}${pct(v)}%</i>`
-const px = (q, k) => q ? `<span class="${q.soldOut ? 'out' : q.ago ? 'stale' : ''}" title="${unit[k][0]}價${q.soldOut ? `（${span(0)} 沒有人在賣）` : q.ago ? `（${span(q.ago)} 的成交）` : ''}${q.d1 != null ? `；近 24 小時成交均價比前一天${Math.abs(q.d1) < 1 ? '持平' : (q.d1 > 0 ? '漲 ' : '跌 ') + pct(q.d1) + '%'}` : ''}">${img(unit[k][1])}<b class="v">${fmt(q.price)}</b>${chg(q.d1)}</span>` : `<span class="na" title="24 小時內沒有${unit[k][0]}成交">${img(unit[k][1])}—</span>`
+const px = (q, k) => q ? `<span class="${q.soldOut ? 'out' : q.ago ? 'stale' : ''}" title="${unit[k][0]}賣價參考（最近幾小時賣家賣到的高價；成交均價 ${fmt(q.price)}）${q.soldOut ? `（${span(0)} 沒有人在賣）` : q.ago ? `（${span(q.ago)} 的成交）` : ''}${q.d1 != null ? `；近 24 小時成交均價比前一天${Math.abs(q.d1) < 1 ? '持平' : (q.d1 > 0 ? '漲 ' : '跌 ') + pct(q.d1) + '%'}` : ''}">${img(unit[k][1])}<b class="v">${fmt(q.sell)}</b>${chg(q.d1)}</span>` : `<span class="na" title="24 小時內沒有${unit[k][0]}成交">${img(unit[k][1])}—</span>`
 // 展開區：每種通貨一個小表格（均價／區間／成交／在售）。
 // 均價、區間、成交量來自「最近一次有成交的時段」（可能早於資料時間）；在售是資料時間的狀況，各自標出時段。
 // 不到 1 個通貨的物品寫成「1 混沌石 = N 個」，不用自己換算
@@ -387,12 +387,13 @@ const detail = (q, k, it) => {
   const [u] = unit[k]
   if (!q) return it === unit[k][1] ? '' : `<div class="none"><b>${u}價</b>：24 小時內沒有成交</div>`
   const cheap = q.price < 1
-  const avg = cheap ? `1 ${u} = ${fmt(1 / q.price)} 個` : `1 個 = ${fmt(q.price)} ${u}`
+  const one = p => cheap ? `1 ${u} = ${fmt(1 / p)} 個` : `1 個 = ${fmt(p)} ${u}`
+  const hrs = `最近 ${q.sellN} 個有成交的小時`
   const note = odd(q.price, q.range)
   const rng = (cheap ? `1 ${u} = ${range([1 / q.range[1], 1 / q.range[0]])} 個` : `${range(q.range)} ${u}`) + (note ? `<br><span class="warn">${note}</span>` : '')
   const stock = q.soldOut ? `<span class="warn">0 個（${spanH(0)} 沒有人在賣）</span>`
     : q.stock[0] === q.stock[1] ? `${num(q.stock)} 個（${spanH(0)}）` : `${num(q.stock)} 個（${spanH(0)} 期間最少～最多）`
-  return `<div><b>${u}價</b><dl><dt>均價</dt><dd>${avg}</dd><dt>區間</dt><dd>${rng}</dd>`
+  return `<div><b>${u}價</b><dl><dt title="${hrs}，每小時最高成交價的中位數：掛單願意等，大約賣得到這個價">掛單賣</dt><dd>${one(q.sell)}</dd><dt title="${hrs}，每小時最低成交價的中位數：急著賣、直接賣給收購的人，大約只拿到這個價">急著賣</dt><dd>${one(q.quick)}</dd><dt>成交均價</dt><dd>${one(q.price)}</dd><dt>區間</dt><dd>${rng}</dd>`
     + `<dt>成交</dt><dd>${q.vol[0].toLocaleString()} 個（${spanH(q.ago)}）</dd><dt>在售</dt><dd>${stock}</dd>${trend(q, u, cheap)}</dl></div>`
 }
 // 漲跌：近 24 小時的成交均價，和前一天、一週前各 24 小時的成交均價相比
@@ -410,7 +411,7 @@ const trend = (q, u, cheap) => {
   return rows + `<dt>7 天走勢</dt><dd>${rng}</dd><div class="spark" title="每 6 小時的成交均價，空白＝該時段沒有成交"><svg viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true"><path d="${d}"/></svg>`
     + `<div class="sk"><span>${md(new Date(D.updated - D.hist * 3600e3))}</span><span>${md(new Date(D.updated))}</span></div></div>`
 }
-const key = it => it.noTrade ? -1 : it.chaos?.price ?? it.divine.price * D.divinePrice // 只用來排序，無成交排最後
+const key = it => it.noTrade ? -1 : it.chaos?.sell ?? it.divine.sell * D.divinePrice // 只用來排序，無成交排最後
 const soldOut = it => !it.noTrade && [it.chaos, it.divine].filter(Boolean).every(q => q.soldOut)
 // 24 小時沒有成交的物品：照遊戲位置顯示，但沒有價格（官方資料沒有成交價，不做推算）
 //   有人在賣（listing）的顯示在售數量：買得到，但要進遊戲看開價
@@ -437,7 +438,7 @@ $('sortSel').onchange = () => { sortMode = $('sortSel').value; render(); try { l
 $('grouped').onchange = () => { grouped = $('grouped').checked; render(); try { localStorage.setItem('grouped', grouped ? '1' : '0') } catch {} }
 function applySort(rows) {
   if (sortMode === 'game') return rows
-  const [c, dir] = sortMode.split('-'), p = it => (c === 'c' ? it.chaos : it.divine)?.price
+  const [c, dir] = sortMode.split('-'), p = it => (c === 'c' ? it.chaos : it.divine)?.sell
   return [...rows].sort((a, b) => {
     const x = p(a), y = p(b)
     if (x == null || y == null) return (x == null) - (y == null)
