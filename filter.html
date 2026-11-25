@@ -89,15 +89,15 @@ tr.off .to > :not(.keepnote) { opacity: .35; filter: grayscale(1); }
   <h1>台服價格過濾器</h1>
   <p class="lead">依台服成交價，調整你過濾器裡分級不準的物品，其他照原作者。<br>檔案只在你的瀏覽器處理，不會上傳。</p>
   <ol class="steps">
-    <li><b>選檔案</b><br>文件 › My Games › Path of Exile 裡的 <code>.filter</code></li>
+    <li><b>選檔案</b><br>文件 › My Games › Path of Exile 裡的 <code>.filter</code><br>訂閱的過濾器在裡面的 OnlineFilters 資料夾</li>
     <li><b>看清單</b><br>原本和調整後掉在地上的樣子</li>
     <li><b>下載</b><br>放回同一個資料夾，在遊戲裡選它</li>
   </ol>
 
   <label class="drop" id="drop">
-    <input type="file" id="file" accept=".filter">
+    <input type="file" id="file">
     <strong>選擇過濾器檔案</strong>
-    <span>或把 .filter 檔拖到這裡</span>
+    <span>或把檔案拖到這裡</span>
   </label>
   <div class="opts">
     <span id="dataTime"></span>
@@ -157,7 +157,7 @@ function run(scroll = true) {
   $('res').innerHTML = `<p class="file">檔案：${esc(current.name)}</p>
     <div class="sum"><div><b>${r.stats.items}</b><small>判斷的物品</small></div><div><b>${r.stats.items - r.applied}</b><small>照原樣${kept ? `（含不更改 ${kept}）` : ''}</small></div>
       <div><b style="color:var(--up)">${up.filter(on).length}</b><small>升級</small></div><div><b style="color:var(--dn)">${dn.filter(on).length}</b><small>降級</small></div></div>
-    ${r.applied ? `<div class="dl"><button type="button" id="save">⬇ 下載調整後的過濾器</button><span>檔名和上傳的相同，放回資料夾會取代原檔（要留原檔請先備份）<br>遊戲裡：選項 › 遊戲 › 物品過濾器</span></div>
+    ${r.applied ? `<div class="dl"><button type="button" id="save">⬇ 下載調整後的過濾器</button><span>${r.name === current.name ? '檔名和上傳的相同，放回資料夾會取代原檔（要留原檔請先備份）' : `訂閱的過濾器：存成 <code>${esc(r.name)}</code>，放到 Path of Exile 資料夾（不是 OnlineFilters）`}<br>遊戲裡：選項 › 遊戲 › 物品過濾器</span></div>
     <ul class="note"><li>和同樣式物品的台服價差 5 倍以上才調整</li><li>升級更醒目；降級較不起眼，但不會隱藏</li><li>不調整：混沌石、神聖石、幻色石、崇高石、點金石、改造石、豐裕牌組、命運卡</li><li>不想改的，取消那一列的「套用」（只限這次下載）</li></ul>`
     : r.changes.length ? '<div class="msg">全部選了不更改，不需要下載。</div>' : '<div class="msg">分級和台服行情相符，不需要調整。</div>'}
     ${sect('up', '升級', '台服比作者分級貴很多，改得更醒目', up)}
@@ -181,7 +181,6 @@ $('res').addEventListener('change', e => {
 })
 async function load(f) {
   if (!f) return
-  if (!/\.filter$/i.test(f.name)) { $('err').textContent = '請選副檔名是 .filter 的過濾器檔案。'; $('err').hidden = false; return }
   current = { text: await f.text(), name: f.name }
   keep = []
   run()

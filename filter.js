@@ -182,7 +182,7 @@
     }
     out.push('# ===== 以下為原過濾器 =====', '')
     const nl = /\r\n/.test(body) ? '\r\n' : '\n'
-    const name = fileName // 上傳什麼檔名，下載就是什麼檔名
+    const name = /\.filter$/i.test(fileName) ? fileName : fileName + '.filter' // 上傳什麼檔名，下載就是什麼檔名；訂閱的過濾器沒有副檔名，補上 .filter 遊戲才讀得到
     return {
       text: (bom ? '﻿' : '') + out.join(nl) + nl + body, name,
       applied: applied.length,
