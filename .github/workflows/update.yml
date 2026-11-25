@@ -30,7 +30,7 @@ jobs:
       cancel-in-progress: false
     environment:
       name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+      url: ${{ steps.deploy1.outputs.page_url || steps.deploy2.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -47,7 +47,14 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
-      - id: deploy
+      # 連續推送時，前一次部署可能還沒結束就撞到而失敗；失敗就等 60 秒重試一次
+      - id: deploy1
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+      - if: steps.deploy1.outcome == 'failure'
+        run: sleep 60
+      - id: deploy2
+        if: steps.deploy1.outcome == 'failure'
         uses: actions/deploy-pages@v4
       # 公開 repo 60 天沒有活動，GitHub 會停用排程；每次執行時重新啟用一次
       - name: keep schedule enabled
