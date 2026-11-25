@@ -27,7 +27,7 @@ static class App
 {
     const string Site = "https://euripideslcw.github.io/tw-price/";
     // 版本號：改了這個檔案要重新編譯並把這裡加 1；網站的 app-version.json 由 GitHub Actions 依此產生
-    const string Version = "1.3.2";
+    const string Version = "1.3.3";
     // 更新簽章的公鑰（RSA-3072）。對應的私鑰只在發布者的電腦上，不在任何網路服務裡：
     // 就算網站或 GitHub 帳號被入侵，沒有私鑰就簽不出能通過驗證的 exe，小程式不會安裝它。
     const string UpdatePublicKey = "<RSAKeyValue><Modulus>tVzDffWFSdWpzM3O1YJwzkjTgA75R3+GsAm97fXJuE59qO0M3ldv6Xk2YP2Fdg7ysMoy0BOgRWyy19rlEOGmZVGjt6cSN0/Kpi28qNN+fNZYATRfk82gB++03d+2hEk3MHxPliaWYUR0JupFPbxpx2wUWso93+CUBaB+R3Aq07aEWY6OWdNGpNE5M4scNSjRf4UspT26GJLRDjTP8UwUYFoVATcxpCEJsUIDS11v/ctlfTPwetzqmzk3PONu1905AeioBolCPHW23HqfPT+OXZ/5ucA1DPKukcxHdBHWpqoXkoW3ClzTqlxpXyeZfbUJp62L8Kz53Pi+WVpGiv9aFI3EnazY2PjzrG7A5wKxNyNnKEh+3Ok8QWG4W9QMm7Kp1SSmJj9MPC+5eVr67ZeS4qpAsoksY0FeMWguBxuOvZeaI3wl3Y7+giA5uDnhL1NIcNz/NCuhN7ljck+9f1RCm7+2+nBL44xPqXznYqFSU9Pt/7WR76FYoMoHBel/mMyh</Modulus><Exponent>AQAB</Exponent></RSAKeyValue>";
@@ -479,7 +479,37 @@ static class App
         long now = DateTime.UtcNow.Ticks / 10000;
         if (now - LastOpen < 10000 || WindowOpen()) return;
         LastOpen = now;
+        IntPtr game = GetForegroundWindow();
         OpenWindow(false);
+        // 瀏覽器開窗會搶走鍵盤焦點，之後在遊戲裡按 Ctrl+C 會送到小窗、遊戲沒有複製。
+        // 等小窗出現後把焦點還給剛才的視窗（遊戲），下一次 Ctrl+C 才查得到
+        var t = new Thread(delegate ()
+        {
+            for (int i = 0; i < 50 && !WindowOpen(); i++) Thread.Sleep(200);
+            // 瀏覽器載入頁面時可能再搶一次焦點，所以接下來 5 秒內持續檢查、被搶走就還回去
+            for (int i = 0; i < 20; i++) { Thread.Sleep(250); GiveFocus(game); }
+        });
+        t.IsBackground = true;
+        t.Start();
+    }
+    // Windows 不讓背景程式隨便切換前景視窗；暫時把輸入接到目前前景視窗的執行緒上，切換才會生效
+    static void GiveFocus(IntPtr h)
+    {
+        if (h == IntPtr.Zero) return;
+        IntPtr fg = GetForegroundWindow();
+        if (fg == h) return;
+        uint pid;
+        uint fgThread = GetWindowThreadProcessId(fg, out pid), me = GetCurrentThreadId();
+        bool attached = fgThread != me && AttachThreadInput(me, fgThread, true);
+        SetForegroundWindow(h);
+        if (attached) AttachThreadInput(me, fgThread, false);
+        if (GetForegroundWindow() != h)
+        {
+            // 還是被擋：按放一下 Alt（Windows 允許剛有鍵盤輸入的程式切換前景），再切一次
+            keybd_event(0x12, 0, 0, UIntPtr.Zero);
+            keybd_event(0x12, 0, 2, UIntPtr.Zero);
+            SetForegroundWindow(h);
+        }
     }
     static bool WindowOpen()
     {
@@ -537,6 +567,12 @@ static class App
     [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc f, IntPtr p);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
     [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+    [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+    [DllImport("user32.dll")] static extern bool AttachThreadInput(uint from, uint to, bool attach);
+    [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")] static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
     [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
 
     // 小窗頁面的標題含「疊加」（網站的疊加版面會把標題改成「台服通貨價格 疊加」）
