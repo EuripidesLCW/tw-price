@@ -637,6 +637,9 @@ if ('documentPictureInPicture' in window && !LIVE && !OVERLAY) {
   $('pipBtn').onclick = () => openPip().catch(err => alert('無法開啟置頂小窗：' + err.message))
 }
 if (LIVE) $('tools').hidden = true // 已經在用小程式了
+else fetch('app-version.json', { cache: 'no-store' }).then(r => r.json()).then(v => {
+  $('dlBtn').querySelector('small').textContent = `v${v.version} · 免安裝 · 會自動更新`
+}).catch(() => {})
 
 if (OVERLAY) {
   document.documentElement.classList.add('ov')

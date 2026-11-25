@@ -26,6 +26,8 @@ using System.Windows.Forms;
 static class App
 {
     const string Site = "https://euripideslcw.github.io/tw-price/";
+    // 版本號：改了這個檔案要重新編譯並把這裡加 1；網站的 app-version.json 由 GitHub Actions 依此產生
+    const string Version = "1.1.0";
     const int BasePort = 47811;
     static int Port;
     static readonly string Dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TwPriceOverlay");
@@ -38,13 +40,14 @@ static class App
 
     static bool KeepTop = true;
     static NotifyIcon Tray;
+    static Mutex Single;
 
     [STAThread]
     static void Main(string[] args)
     {
         Directory.CreateDirectory(Dir);
         bool first;
-        var single = new Mutex(true, "TwPriceOverlay.Singleton", out first);
+        Single = new Mutex(true, "TwPriceOverlay.Singleton", out first);
         if (!first)
         {
             // 已經在執行：只再開一次小窗
@@ -60,12 +63,13 @@ static class App
             return;
         }
         File.WriteAllText(Path.Combine(Dir, "port.txt"), Port.ToString());
+        CleanupOld();
 
         Application.EnableVisualStyles();
         var clip = new ClipWatcher();
         Tray = new NotifyIcon();
         Tray.Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
-        Tray.Text = "台服通貨價格（遊戲裡 Ctrl+C 查價）";
+        Tray.Text = "台服通貨價格 v" + Version + "（遊戲裡 Ctrl+C 查價）";
         var menu = new ContextMenuStrip();
         menu.Items.Add("開啟置頂小窗", null, delegate { OpenWindow(false); });
         menu.Items.Add("開啟完整版面（雙螢幕用）", null, delegate { OpenWindow(true); });
@@ -81,9 +85,10 @@ static class App
         Tray.ShowBalloonTip(4000, "台服通貨價格", "已啟動。遊戲裡把滑鼠移到物品上按 Ctrl+C，小窗就會顯示價格。右下角圖示可重新開啟或結束。", ToolTipIcon.Info);
 
         OpenWindow(false);
+        StartUpdateChecks();
         Application.Run();
         clip.Dispose();
-        GC.KeepAlive(single);
+        GC.KeepAlive(Single);
     }
 
     static string ReadFile(string name)
@@ -262,6 +267,82 @@ static class App
             else sb.Append(ch);
         }
         return sb.Append('"').ToString();
+    }
+
+    // ── 自動更新 ─────────────────────────────────────────────
+    // 啟動時與之後每 6 小時查網站的 app-version.json；有新版就下載新 exe、核對 SHA-256、替換自己。
+    // Windows 不能覆寫執行中的 exe，但可以改名：舊檔改名成 .old，新檔放回原檔名，下次啟動時刪掉 .old。
+    // 頁面與價格本來就是從網站即時載入，只有小程式本身的功能改了才需要更新 exe。
+    static string ExePath { get { return Application.ExecutablePath; } }
+    static bool UpdateReady;
+
+    static void CleanupOld()
+    {
+        try { if (File.Exists(ExePath + ".old")) File.Delete(ExePath + ".old"); } catch { }
+    }
+
+    static void StartUpdateChecks()
+    {
+        var t = new Thread(delegate ()
+        {
+            Thread.Sleep(5000); // 先讓小窗開起來
+            while (!UpdateReady) { CheckUpdate(); Thread.Sleep(TimeSpan.FromHours(6)); }
+        });
+        t.IsBackground = true;
+        t.Start();
+        Tray.BalloonTipClicked += delegate { if (UpdateReady) Restart(); };
+    }
+
+    static void CheckUpdate()
+    {
+        try
+        {
+            string json;
+            using (var w = new WebClient()) { w.Encoding = Encoding.UTF8; json = w.DownloadString(Site + "app-version.json?t=" + DateTime.UtcNow.Ticks); }
+            string ver = JsonField(json, "version"), sha = JsonField(json, "sha256");
+            Version remote;
+            if (sha == null || !System.Version.TryParse(ver, out remote) || remote <= new Version(Version)) return;
+
+            byte[] exe;
+            using (var w = new WebClient()) exe = w.DownloadData(Site + "TwPriceOverlay.exe?t=" + DateTime.UtcNow.Ticks);
+            string got;
+            using (var h = System.Security.Cryptography.SHA256.Create()) got = BitConverter.ToString(h.ComputeHash(exe)).Replace("-", "").ToLowerInvariant();
+            if (got != sha.ToLowerInvariant()) return; // 下載不完整或內容不符：不使用，下次再試
+
+            try
+            {
+                File.WriteAllBytes(ExePath + ".new", exe);
+                if (File.Exists(ExePath + ".old")) File.Delete(ExePath + ".old");
+                File.Move(ExePath, ExePath + ".old");
+                File.Move(ExePath + ".new", ExePath);
+            }
+            catch
+            {
+                try { if (File.Exists(ExePath + ".new")) File.Delete(ExePath + ".new"); } catch { }
+                Tray.ShowBalloonTip(8000, "台服通貨價格 有新版 v" + ver, "無法自動更新（這個資料夾不能寫入），請到網站重新下載。", ToolTipIcon.Warning);
+                UpdateReady = true; // 不再重試
+                return;
+            }
+            UpdateReady = true;
+            Tray.ShowBalloonTip(10000, "台服通貨價格 已更新到 v" + ver, "點這裡立即重新啟動；或下次開啟時自動使用新版。", ToolTipIcon.Info);
+        }
+        catch { } // 沒網路之類：下次再試
+    }
+
+    static void Restart()
+    {
+        Tray.Visible = false;
+        // 先放掉「只能開一個」的鎖，新版才不會以為已經有一份在跑而直接結束
+        try { Single.ReleaseMutex(); Single.Dispose(); } catch { }
+        Process.Start(ExePath, "--restart");
+        Environment.Exit(0);
+    }
+
+    // 只讀扁平 JSON 的字串欄位（app-version.json 只有兩個欄位，不值得引入 JSON 函式庫）
+    static string JsonField(string json, string name)
+    {
+        var m = Regex.Match(json, "\"" + name + @"""\s*:\s*""([^""]*)""");
+        return m.Success ? m.Groups[1].Value : null;
     }
 
     // ── 瀏覽器小窗 ───────────────────────────────────────────
