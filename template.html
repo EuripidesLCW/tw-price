@@ -228,11 +228,10 @@ html.ov .tools { display: none; }
       <button type="button" class="tool" id="pipBtn" hidden>📌 開啟置頂小窗<small>免安裝</small></button>
       <a class="tool" id="dlBtn" href="TwPriceOverlay.zip" download>⬇ 下載 Windows 小程式<small>免安裝 · 約 20 KB</small></a>
       <details class="tools-help"><summary>怎麼用？</summary>
-        <p><b>置頂小窗（免安裝，Chrome／Edge 電腦版）</b>：按「開啟置頂小窗」會出現一個永遠在最上層的小視窗。在遊戲裡游標指著物品按 <kbd>Ctrl</kbd>+<kbd>C</kbd>，再點一下小窗按 <kbd>Ctrl</kbd>+<kbd>V</kbd>，就會顯示它的價格。</p>
-        <p><b>Windows 小程式</b>：解壓縮後雙擊 <code>TwPriceOverlay.exe</code>，會開一個蓋在遊戲上的小窗。之後在遊戲裡游標指著物品按 <kbd>Ctrl</kbd>+<kbd>C</kbd>，<b>不用切換視窗</b>就自動顯示價格。小窗關掉了，在遊戲裡按 <kbd>Ctrl</kbd>+<kbd>C</kbd> 會自動再打開。<b>推薦</b>：右鍵右下角工作列圖示，勾選「開機時自動在背景啟動」，以後開機它就在背景待命，不用再去點 exe。</p>
-        <p>第一次執行時 Windows 可能顯示「Windows 已保護您的電腦」，這是因為小程式沒有付費購買數位簽章：按「其他資訊」→「仍要執行」即可。小程式只讀取「遊戲物品」的複製內容（含「稀有度」那一行），其他複製的文字一律不讀取、不傳送；原始碼公開在 <a href="https://github.com/EuripidesLCW/tw-price/tree/main/app" target="_blank" rel="noopener">GitHub</a>。</p>
-        <p>兩種方式都需要遊戲設為「視窗化全螢幕」，小窗才蓋得上去。</p>
-        <p><b>自動更新與安全</b>：小程式啟動時與每 6 小時會檢查新版，新版必須通過發布者的數位簽章驗證才會安裝（簽章的私鑰不在網站或 GitHub 上，網站被入侵也無法推送假更新）。<span id="shaLine"></span></p>
+        <p><b>置頂小窗（免安裝）</b>：按「開啟置頂小窗」，會出現一個停在最上層的小視窗。遊戲裡游標指著物品按 <kbd>Ctrl</kbd>+<kbd>C</kbd>，再點一下小窗按 <kbd>Ctrl</kbd>+<kbd>V</kbd>，就會跳到它的價格。</p>
+        <p><b>Windows 小程式（推薦）</b>：下載後解壓縮，雙擊 <code>TwPriceOverlay.exe</code>。之後遊戲裡游標指著物品按 <kbd>Ctrl</kbd>+<kbd>C</kbd>，小窗就自動跳到它的價格，不用切換視窗；小窗關掉了，按 <kbd>Ctrl</kbd>+<kbd>C</kbd> 也會自動再打開。在小窗裡勾選「開機時自動在背景啟動」，以後就不用再去點 exe。第一次執行若出現「Windows 已保護您的電腦」，按「其他資訊」→「仍要執行」。</p>
+        <p>遊戲要設成「視窗化全螢幕」，小窗才蓋得上去。</p>
+        <p><b>卡片怎麼看</b>：上面一行是混沌石價、下面一行是神聖石價，都是 1 個物品的實際成交均價；旁邊的 ▲▼ 是近 24 小時比前一天的漲跌（紅漲綠跌）。點開卡片可以看：成交區間、成交數量、在售數量、比前一天／比一週前的漲跌，以及 7 天走勢圖。</p>
       </details>
     </div>
   </header>
@@ -684,7 +683,6 @@ if ('documentPictureInPicture' in window && !LIVE && !OVERLAY) {
 if (LIVE) $('tools').hidden = true // 已經在用小程式了
 else fetch('app-version.json', { cache: 'no-store' }).then(r => r.json()).then(v => {
   $('dlBtn').querySelector('small').textContent = `v${v.version} · 免安裝 · 會自動更新`
-  $('shaLine').innerHTML = `想自己核對：v${esc(v.version)} 的 TwPriceOverlay.exe SHA-256 為 <code style="word-break:break-all">${esc(v.sha256)}</code>（PowerShell：<code>Get-FileHash TwPriceOverlay.exe</code>）`
 }).catch(() => {})
 
 if (OVERLAY) {

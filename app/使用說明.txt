@@ -46,7 +46,6 @@
 - 只在你自己的電腦上（127.0.0.1）運作，不會把複製內容送到任何地方。
 - 自動更新的新版必須通過發布者的數位簽章驗證才會安裝，網站被入侵也無法推送假更新。
 - 價格資料來自網站 https://euripideslcw.github.io/tw-price/
-- 原始碼公開：https://github.com/EuripidesLCW/tw-price/tree/main/app
 
 價格的意思
 ----------
