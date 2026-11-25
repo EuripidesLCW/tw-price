@@ -11,3 +11,7 @@ private*.xml
 *.pem
 *.key
 *.pfx
+# GitHub 兩步驟驗證的復原碼（GitHub 下載的預設檔名）絕不進版本庫
+*recovery-codes*
+*recovery_codes*
+.tw-price-signing/
