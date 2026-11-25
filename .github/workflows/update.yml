@@ -47,7 +47,7 @@ jobs:
       # app-version.json：小程式的自動更新會讀它（版本號取自原始碼的 Version 常數，校驗碼由 exe 算出，簽章由發布者本機產生）
       - run: |
           mkdir _site && cp index.html data.js app/TwPriceOverlay.exe _site/
-          (cd app && zip -q -X ../_site/TwPriceOverlay.zip TwPriceOverlay.exe TwPriceOverlay.exe.sig 使用說明.txt)
+          (cd app && zip -q -X ../_site/TwPriceOverlay.zip TwPriceOverlay.exe 使用說明.txt)
           ver=$(sed -n 's/.*const string Version = "\([^"]*\)".*/\1/p' app/TwPriceOverlay.cs)
           sha=$(sha256sum app/TwPriceOverlay.exe | cut -d' ' -f1)
           # sig：發布者在自己電腦上用私鑰簽署（app/sign-exe.ps1），小程式用內建公鑰驗證；雲端只負責轉貼，碰不到私鑰
