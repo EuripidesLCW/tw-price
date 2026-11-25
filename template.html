@@ -172,6 +172,26 @@ html.ov main { margin-top: 4px; }
 .clip b { color: var(--text); font-weight: 600; }
 .clip .hint { margin-left: auto; opacity: .75; font-size: 12px; text-align: right; }
 .clip.miss b { color: var(--muted); font-weight: 400; }
+.tools { width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; font-size: 13px; }
+.tools-t { color: var(--muted); }
+.tools[hidden], .tool[hidden] { display: none; }
+.tool { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--accent); border-radius: 8px; background: var(--accent-soft); color: var(--accent); font: inherit; font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer; }
+.tool:hover { background: var(--accent); color: #1a1408; }
+:root[data-theme="light"] .tool:hover { color: #fff; }
+.tool small { font-size: 11px; font-weight: 400; opacity: .8; }
+.tools-help { width: 100%; color: var(--muted); }
+.tools-help summary { cursor: pointer; width: fit-content; }
+.tools-help p { margin: 6px 0; line-height: 1.6; }
+.tools-help kbd { font: inherit; font-size: 12px; padding: 0 5px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); color: var(--text); }
+.tools-help a { color: var(--accent); }
+@media (max-width: 600px) { .tools { display: none; } }
+html.ov .tools { display: none; }
+/* 置頂小窗（Document Picture-in-Picture）裡的版面 */
+.pip { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.pip .grid { grid-template-columns: 1fr; }
+.pip .card .more { position: static; border: 0; border-top: 1px dashed var(--line); box-shadow: none; border-radius: 0 0 10px 10px; }
+.pip .card[open] { border-radius: 10px; }
+.pip input { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); font: inherit; }
 /* 剛從剪貼簿跳過來的那張卡閃一下，不然在清單裡不知道看哪 */
 @keyframes clipflash { from { box-shadow: 0 0 0 2px var(--accent); } to { box-shadow: 0 0 0 2px transparent; } }
 .card.justcopied { animation: clipflash 1.2s ease-out; }
@@ -184,6 +204,18 @@ html.ov main { margin-top: 4px; }
     <div class="rate"><span id="rate"></span><button class="theme" id="theme" type="button" role="switch"><span class="knob"></span><span class="ic sun"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2" fill="currentColor" stroke="none"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg></span><span class="ic moon"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.5 14.6A8.5 8.5 0 0 1 9.4 3.5a.6.6 0 0 0-.8-.7A9.5 9.5 0 1 0 21.2 15.4a.6.6 0 0 0-.7-.8z"/></svg></span></button></div>
     <div class="stamp" id="stamp"></div>
     <div class="meta" id="meta"></div>
+    <!-- 查價小工具：電腦版才有意義（手機沒有遊戲可以 Ctrl+C），疊加小窗與小程式裡也不顯示 -->
+    <div class="tools" id="tools">
+      <span class="tools-t">查價小工具</span>
+      <button type="button" class="tool" id="pipBtn" hidden>📌 開啟置頂小窗<small>免安裝</small></button>
+      <a class="tool" id="dlBtn" href="TwPriceOverlay.zip" download>⬇ 下載 Windows 小程式<small>免安裝 · 約 20 KB</small></a>
+      <details class="tools-help"><summary>怎麼用？</summary>
+        <p><b>置頂小窗（免安裝，Chrome／Edge 電腦版）</b>：按「開啟置頂小窗」會出現一個永遠在最上層的小視窗。在遊戲裡游標指著物品按 <kbd>Ctrl</kbd>+<kbd>C</kbd>，再點一下小窗按 <kbd>Ctrl</kbd>+<kbd>V</kbd>，就會顯示它的價格。</p>
+        <p><b>Windows 小程式</b>：解壓縮後雙擊 <code>TwPriceOverlay.exe</code>，會開一個蓋在遊戲上的小窗。之後在遊戲裡游標指著物品按 <kbd>Ctrl</kbd>+<kbd>C</kbd>，<b>不用切換視窗</b>就自動顯示價格。右下角工作列圖示可以重新開啟小窗或結束。</p>
+        <p>第一次執行時 Windows 可能顯示「Windows 已保護您的電腦」，這是因為小程式沒有付費購買數位簽章：按「其他資訊」→「仍要執行」即可。小程式只讀取「遊戲物品」的複製內容（含「稀有度」那一行），其他複製的文字一律不讀取、不傳送；原始碼公開在 <a href="https://github.com/EuripidesLCW/tw-price/tree/main/app" target="_blank" rel="noopener">GitHub</a>。</p>
+        <p>兩種方式都需要遊戲設為「視窗化全螢幕」，小窗才蓋得上去。</p>
+      </details>
+    </div>
   </header>
   <div id="barTop"></div>
   <div class="clip" id="clip"></div>
@@ -267,6 +299,7 @@ function poll() {
     if (N && (N.generated !== D.generated || N.updated !== D.updated)) {
       const newHour = N.updated !== D.updated, y = scrollY
       D = N; paint(); render(); scrollTo(0, y)
+      pipRefresh()
       if (newHour) {
         $('toast').textContent = `已更新到 ${hhmm(new Date(D.updated - 3600e3))}–${hhmm(new Date(D.updated))} 的資料`
         $('toast').classList.add('show'); setTimeout(() => $('toast').classList.remove('show'), 4000)
@@ -553,6 +586,56 @@ addEventListener('paste', e => {
   e.preventDefault()
   if (it) showItem(it, `${hhmm(new Date())} 貼上`); else noPrice(text)
 })
+
+// ── 置頂小窗（免安裝）─────────────────────────────────────
+// 用瀏覽器的 Document Picture-in-Picture：開一個永遠在最上層的小視窗（Chrome／Edge 116+ 電腦版）。
+// 網頁讀不到背景的剪貼簿，所以還是要「點一下小窗＋Ctrl+V」，但不用切換整個瀏覽器視窗。
+// 在小程式（本機 127.0.0.1）或疊加版面裡不需要這個；手機沒有遊戲可複製也不顯示（CSS 隱藏整列）。
+let pipWin = null, pipItemId = null
+function pipRefresh() {
+  if (!pipWin || pipWin.closed || !pipItemId) return
+  const it = D.items.find(i => i.id === pipItemId)
+  if (it) pipShow(it)
+}
+function pipShow(it) {
+  const d = pipWin.document
+  d.getElementById('pclip').innerHTML = `<b>${esc(it.name)}</b><span class="hint">${esc(it.en ?? '')}<br>資料時間 ${span(0)}</span>`
+  d.getElementById('pcard').innerHTML = `<div class="grid">${card(it)}</div>`
+  const el = d.querySelector('details.card'); if (el) el.open = true
+}
+async function openPip() {
+  if (pipWin && !pipWin.closed) { pipWin.focus(); return }
+  pipWin = await documentPictureInPicture.requestWindow({ width: 380, height: 480 })
+  const d = pipWin.document
+  for (const s of document.querySelectorAll('style')) d.head.append(s.cloneNode(true))
+  if (document.documentElement.dataset.theme) d.documentElement.dataset.theme = document.documentElement.dataset.theme
+  d.title = '台服通貨價格'
+  d.body.innerHTML = `<div class="pip">
+    <div class="clip" id="pclip"><b>在遊戲裡 Ctrl+C 複製物品</b><span class="hint">點這個小窗按 Ctrl+V<br>就會顯示價格</span></div>
+    <input id="pq" type="search" placeholder="或輸入物品名稱" autocomplete="off">
+    <div id="pcard"></div></div>`
+  const find = text => {
+    const it = itemFromText(text)
+    if (it) { pipItemId = it.id; pipShow(it); return true }
+    if (looksLikeItem(text)) {
+      d.getElementById('pclip').innerHTML = '<b>通貨交換裡沒有這個物品</b><span class="hint">只有能用通貨交換的才有價格</span>'
+      d.getElementById('pcard').innerHTML = ''; pipItemId = null; return true
+    }
+    return false
+  }
+  pipWin.addEventListener('paste', e => { if (find(e.clipboardData?.getData('text') ?? '')) e.preventDefault() })
+  d.getElementById('pq').addEventListener('input', e => {
+    const q = e.target.value.trim().toLowerCase(); if (!q) return
+    const it = D.items.find(i => i.name.toLowerCase().includes(q) || i.en?.toLowerCase().includes(q))
+    if (it) { pipItemId = it.id; pipShow(it) }
+  })
+  pipWin.addEventListener('pagehide', () => { pipWin = null })
+}
+if ('documentPictureInPicture' in window && !LIVE && !OVERLAY) {
+  $('pipBtn').hidden = false
+  $('pipBtn').onclick = () => openPip().catch(err => alert('無法開啟置頂小窗：' + err.message))
+}
+if (LIVE) $('tools').hidden = true // 已經在用小程式了
 
 if (OVERLAY) {
   document.documentElement.classList.add('ov')

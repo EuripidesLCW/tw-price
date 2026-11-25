@@ -43,7 +43,8 @@ jobs:
           key: tw-cache-${{ github.run_id }}
           restore-keys: tw-cache-
       - run: node price.mjs --no-open
-      - run: mkdir _site && cp index.html data.js _site/
+      # 小程式：原始碼與編好的 exe 都在 app/（exe 由 app/build-exe.cmd 以 Windows 內建編譯器產生）
+      - run: mkdir _site && cp index.html data.js _site/ && (cd app && zip -q -X ../_site/TwPriceOverlay.zip TwPriceOverlay.exe 使用說明.txt)
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
