@@ -157,7 +157,13 @@ html.ov body { padding: 0; }
 html.ov .wrap { padding: 8px 10px 10px; gap: 8px; }
 html.ov header { gap: 4px; margin-bottom: 2px; }
 html.ov header h1 { font-size: 17px; }
-html.ov .meta, html.ov .sorter, html.ov header .stamp { display: none; }
+html.ov .meta, html.ov .sorter { display: none; }
+/* 資料時間一定要留著：疊加視窗讀的是本機 data.js，萬一自動更新掛了，
+   沒有這一行就會看著昨天的價格而完全不知道。平常只留時間那一截，
+   超過 2 小時沒新資料時（.old）把警告整段放出來。 */
+html.ov header .stamp { font-size: 11.5px; }
+html.ov .stamp > span { display: none; }
+html.ov .stamp.old > span { display: inline; }
 html.ov .bar { padding: 0; gap: 6px; }
 html.ov main { margin-top: 4px; }
 /* 剪貼簿狀態列：告訴你現在顯示的是哪一顆、什麼時候複製的 */

@@ -198,19 +198,38 @@ function openWindow() {
   return child
 }
 
+// ── 自動更新價格 ──────────────────────────────────────────
+// 本機的 data.js 不會自己更新：雲端那份是 GitHub Actions 每 20 分鐘重跑 price.mjs
+// 發布到 Pages，本機這份只有自己跑過才會換。疊加視窗讀的是**本機**檔案，
+// 所以得自己更新——不然開起來看到的是上次跑 price.mjs 那天的價格。
+// （實際踩到：第一次做好時本機 data.js 已經是 25 小時前的。）
+// 快取是熱的時候約 1~2 秒，因為只需要抓新的那一小時。
+const REFRESH_MS = 10 * 60e3
+const refresh = () => new Promise(res => {
+  execFile(process.execPath, [path.join(here, 'price.mjs'), '--no-open'], { cwd: here },
+    (err, out, errOut) => {
+      if (err) console.error('價格更新失敗（沿用現有資料）：' + (errOut || err.message).trim().split('\n').pop())
+      else console.log((out || '').trim().split('\n').pop())
+      res()
+    })
+})
+
 // ── 起跑 ──────────────────────────────────────────────────
 if (!fs.existsSync(path.join(here, 'data.js'))) {
   console.error('還沒有 data.js，請先跑一次「台服通貨價格.cmd」抓價格')
   process.exit(1)
 }
 
-server.listen(PORT, '127.0.0.1', () => {
+server.listen(PORT, '127.0.0.1', async () => {
   console.log(`疊加模式  http://127.0.0.1:${PORT}/?overlay=1`)
   console.log('遊戲裡把滑鼠移到物品上按 Ctrl+C，這個視窗就會跳到那個物品')
   console.log('關掉視窗就會結束；或在這裡按 Ctrl+C')
+  // 先更新再開視窗：開起來第一眼就該是今天的價格
+  await refresh()
+  const timer = setInterval(refresh, REFRESH_MS)
   const ps = watchClipboard()
   const win = process.argv.includes('--no-window') ? null : openWindow()
-  const bye = () => { try { ps.kill() } catch {} ; server.close(); process.exit(0) }
+  const bye = () => { clearInterval(timer); try { ps.kill() } catch {} ; server.close(); process.exit(0) }
   // 關掉瀏覽器視窗就一起收工；--no-window 時沒有視窗可關，等 Ctrl+C
   win?.on('exit', bye)
   process.on('SIGINT', bye)
