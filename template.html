@@ -149,6 +149,27 @@ h3::after { content: ""; flex: 1; border-top: 1px solid var(--line); order: 1; }
 .ico { width: 18px; height: 18px; }
 .empty { color: var(--muted); padding: 40px 0; text-align: center; }
 @media (max-width: 600px) { .card .px { gap: 0 8px; font-size: 14px; } }
+
+/* 疊加模式（?overlay=1）：400px 左右的小窗、蓋在遊戲上面。
+   窄到會觸發上面的手機版面，所以這裡只收掉「蓋在遊戲上時不需要的東西」：
+   長段說明、排序選單、頁首留白——那些在桌機上要，疊在遊戲上只是擋畫面。 */
+html.ov body { padding: 0; }
+html.ov .wrap { padding: 8px 10px 10px; gap: 8px; }
+html.ov header { gap: 4px; margin-bottom: 2px; }
+html.ov header h1 { font-size: 17px; }
+html.ov .meta, html.ov .sorter, html.ov header .stamp { display: none; }
+html.ov .bar { padding: 0; gap: 6px; }
+html.ov main { margin-top: 4px; }
+/* 剪貼簿狀態列：告訴你現在顯示的是哪一顆、什麼時候複製的 */
+.clip { display: none; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px;
+  background: var(--panel); border: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+html.ov .clip { display: flex; }
+.clip b { color: var(--text); font-weight: 600; }
+.clip .hint { margin-left: auto; opacity: .75; font-size: 12px; text-align: right; }
+.clip.miss b { color: var(--muted); font-weight: 400; }
+/* 剛從剪貼簿跳過來的那張卡閃一下，不然在清單裡不知道看哪 */
+@keyframes clipflash { from { box-shadow: 0 0 0 2px var(--accent); } to { box-shadow: 0 0 0 2px transparent; } }
+.card.justcopied { animation: clipflash 1.2s ease-out; }
 </style>
 </head>
 <body>
@@ -160,6 +181,7 @@ h3::after { content: ""; flex: 1; border-top: 1px solid var(--line); order: 1; }
     <div class="meta" id="meta"></div>
   </header>
   <div id="barTop"></div>
+  <div class="clip" id="clip"><b>在遊戲裡按 Ctrl+C 複製物品</b><span class="hint">就會跳到那一個</span></div>
   <div class="bar" id="bar">
     <div class="search">
       <input id="q" type="search" placeholder="搜尋物品名稱（中文或英文）" autocomplete="off" enterkeyhint="search">
@@ -182,6 +204,8 @@ h3::after { content: ""; flex: 1; border-top: 1px solid var(--line); order: 1; }
 <script>
 let D = window.TW_DATA
 const $ = id => document.getElementById(id)
+// 疊加模式（overlay.mjs 用 ?overlay=1 開）。宣告放最上面：下面的 compactCheck 要用到它
+const OVERLAY = new URLSearchParams(location.search).has('overlay')
 let chaos, divine
 const img = (it, cls = 'ico') => it?.icon ? `<img class="${cls}" src="${it.icon}" alt="" loading="lazy">` : ''
 const fmt = n => n >= 100 ? Math.round(n).toLocaleString() : String(+(n >= 10 ? n.toFixed(1) : n >= 1 ? n.toFixed(2) : n.toPrecision(2)))
@@ -256,7 +280,9 @@ $('clear').onclick = () => { $('q').value = ''; $('clear').hidden = true; render
 // 手機：篩選列在頁首捲出畫面後變成精簡列（搜尋框＋篩選按鈕）固定在上方；點按鈕展開，選完自動收起並回到清單開頭
 const mobile = matchMedia('(max-width: 600px)')
 function compactCheck() {
-  const compact = mobile.matches && $('barTop').getBoundingClientRect().top < 0 // 篩選列原本的位置已捲出畫面
+  // 疊加模式一律精簡：那個視窗只有 400 多 px 寬，整排分類按鈕會把價格擠到視窗外，
+  // 而用 Ctrl+C 查價根本不需要分類。要用的時候按篩選鈕展開。
+  const compact = OVERLAY || (mobile.matches && $('barTop').getBoundingClientRect().top < 0) // 篩選列原本的位置已捲出畫面
   if (compact === $('bar').classList.contains('compact')) return
   $('bar').classList.toggle('compact', compact)
   if (!compact) setOpen(false)
@@ -314,12 +340,12 @@ const soldOut = it => !it.noTrade && [it.chaos, it.divine].filter(Boolean).every
 // 24 小時沒有成交的物品：照遊戲位置顯示，但沒有價格（官方資料沒有成交價，不做推算）
 //   有人在賣（listing）的顯示在售數量：買得到，但要進遊戲看開價
 const stockText = it => [['chaos', '混沌石'], ['divine', '神聖石']].filter(([k]) => it.listing[k]).map(([k, u]) => `用${u}交易 ${num(it.listing[k])} 個`).join('、')
-const noTradeCard = it => `<details class="card notrade${it.listing ? ' listed' : ''}">
+const noTradeCard = it => `<details class="card notrade${it.listing ? ' listed' : ''}" data-id="${esc(it.id)}">
       <summary>${img(it, '')}<div class="nm" title="${esc(it.name)}">${esc(it.name)}</div><div class="px"><span class="na">${it.listing ? `在售 ${Math.max(...Object.values(it.listing).filter(Boolean).map(s => s[1])).toLocaleString()}・無成交價` : '24 小時無成交'}</span></div></summary>
       <div class="more"><div>${esc(it.en ?? '')}</div><div>${it.listing
         ? `<dl><dt>在售</dt><dd>${stockText(it)}（${spanH(0)}）</dd><dt>成交</dt><dd>24 小時內沒有成交</dd></dl>官方資料只有成交價、沒有掛單開價，開價請進遊戲的通貨交換查看。`
         : '24 小時內在通貨交換沒有任何成交。官方資料只提供成交價，因此沒有價格可顯示。'}</div></div></details>`
-const card = it => it.noTrade ? noTradeCard(it) : `<details class="card${soldOut(it) ? ' soldout' : ''}">
+const card = it => it.noTrade ? noTradeCard(it) : `<details class="card${soldOut(it) ? ' soldout' : ''}" data-id="${esc(it.id)}">
       <summary>${img(it, '')}<div class="nm" title="${esc(it.name)}">${esc(it.name)}${soldOut(it) ? '<span class="tag">售完</span>' : ''}</div><div class="px">${px(it.chaos, 'chaos')}${px(it.divine, 'divine')}</div></summary>
       <div class="more"><div>${esc(it.en ?? '')}</div>${detail(it.chaos, 'chaos', it)}${detail(it.divine, 'divine', it)}</div></details>`
 const grid = rows => `<div class="grid">${rows.map(card).join('')}</div>`
@@ -418,6 +444,57 @@ themeBtn()
 paint()
 new ResizeObserver(fit).observe($('list')) // 視窗縮放、捲軸出現或消失都會重算
 render()
+
+// ── 疊加模式：遊戲裡 Ctrl+C，這裡就跳到那一個物品 ──────────────
+//
+// 由 overlay.mjs 用 ?overlay=1 開啟。它在本機跑一個小伺服器，監看剪貼簿，
+// 把認得出來的物品名放在 /clip；這裡輪詢它。
+//
+// 只在本機伺服器下輪詢：GitHub Pages 上沒有 /clip，不先擋掉會每 400ms 404 一次。
+if (OVERLAY) {
+  document.documentElement.classList.add('ov')
+  document.title = '台服通貨價格 疊加' // overlay.mjs 靠標題裡的「疊加」找到這個視窗來置頂
+  compactCheck() // 一進來就收起分類，不用等捲動
+}
+if (OVERLAY && /^(127\.0\.0\.1|localhost)$/.test(location.hostname)) {
+  const clipBox = $('clip')
+  let seen = 0
+  const show = (name, at) => {
+    const it = D.items.find(i => i.name === name)
+    clipBox.classList.toggle('miss', !it)
+    const when = hhmm(new Date(at))
+    if (!it) { clipBox.innerHTML = `<b>${esc(name)}</b><span class="hint">價格表裡沒有這個物品<br>${when}</span>`; return }
+    clipBox.innerHTML = `<b>${esc(it.name)}</b><span class="hint">${esc(it.en ?? '')}<br>${when} 複製</span>`
+    /*
+      搜尋框填上名字，而且把分類與顯示範圍都放到最寬：
+      複製到的物品可能是「售完」或「24 小時無成交」，若停在「近 1 小時在售」
+      就會明明複製了卻一片空白——那會讓人以為壞了。
+    */
+    $('q').value = it.name
+    $('clear').hidden = false
+    cat = '所有'
+    mode = 'all'
+    for (const b of $('chips').children) b.setAttribute('aria-pressed', String(b.dataset.cat === cat))
+    render(); picked()
+    // 展開那張卡並捲到看得見的位置
+    const el = document.querySelector(`details.card[data-id="${CSS.escape(it.id)}"]`)
+    if (el) {
+      el.open = true
+      el.classList.add('justcopied')
+      el.scrollIntoView({ block: 'nearest' })
+      setTimeout(() => el.classList.remove('justcopied'), 1300)
+    }
+  }
+  const tick = async () => {
+    try {
+      const r = await fetch('/clip', { cache: 'no-store' })
+      const c = await r.json()
+      if (c.seq && c.seq !== seen) { seen = c.seq; show(c.name, c.at) }
+    } catch {} // 伺服器關掉了就安靜地不動，頁面其餘功能照常
+  }
+  setInterval(tick, 400)
+  tick()
+}
 </script>
 </body>
 </html>
