@@ -80,8 +80,6 @@ tr.off .to > :not(.keepnote) { opacity: .35; filter: grayscale(1); }
 .top { position: fixed; right: 16px; bottom: 16px; z-index: 10; width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent); font: inherit; font-size: 12px; font-weight: 700; line-height: 1.1; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.35); opacity: 0; pointer-events: none; transform: translateY(8px); transition: opacity .2s, transform .2s; }
 .top.show { opacity: 1; pointer-events: auto; transform: none; }
 .top:hover { background: var(--accent); color: var(--bg); }
-.again { margin: 0 0 14px; padding: 12px 16px; border: 1px solid var(--accent); border-radius: 10px; background: var(--accent-soft); font-size: 14px; line-height: 1.7; }
-.new { margin-left: 6px; padding: 0 6px; border-radius: 4px; background: var(--up); color: #fff; font-size: 11px; font-weight: 600; vertical-align: 2px; }
 .why { font-size: 12px; color: var(--muted); opacity: .85; margin-top: 4px; }
 </style>
 </head>
@@ -136,7 +134,7 @@ function look(s, name) {
   if (st.MinimapIcon && nums(st.MinimapIcon)[0] >= 0) { const [, sz, c, sh] = st.MinimapIcon.split(' '); notes.push(`小地圖：${['大', '中', '小'][sz] ?? ''}${CN[c] ?? esc(c)}${SH[sh] ?? esc(sh)}`) }
   return `<div class="ground"><span class="lbl" style="${css}">${esc(name)}</span></div><div class="notes">${notes.join('<i>·</i>')}</div>`
 }
-const row = c => `<tr class="${c.kept ? 'off' : ''}"><td><div class="it"><img src="${esc(c.item.icon)}" alt="" loading="lazy"><div><b>${esc(c.item.name)}</b>${c.isNew ? '<span class="new">新</span>' : ''}<small>${esc(c.item.en)}</small></div></div>
+const row = c => `<tr class="${c.kept ? 'off' : ''}"><td><div class="it"><img src="${esc(c.item.icon)}" alt="" loading="lazy"><div><b>${esc(c.item.name)}</b><small>${esc(c.item.en)}</small></div></div>
     <label class="pick"><input type="checkbox" data-en="${esc(c.item.en)}"${c.kept ? '' : ' checked'}> 套用這項調整</label></td>
   <td class="v">${fmt(c.value)}</td>
   <td>${look(c.from, c.item.name)}<div class="why">原本和它同樣式的物品，台服中間價約 ${fmt(c.from.med)}</div></td>
@@ -157,26 +155,10 @@ function run(scroll = true) {
   catch (e) { $('res').hidden = true; $('err').textContent = e.message; $('err').hidden = false; return }
   const up = r.changes.filter(c => c.up), dn = r.changes.filter(c => !c.up), on = c => !c.kept
   const kept = r.changes.length - r.applied
-  // 上傳的是之前產生過的檔案：和那份比，新增／取消了哪些調整
-  let again = ''
-  if (r.prev) {
-    const zh = en => esc(D.items.find(i => i.en === en)?.name ?? en)
-    const now = new Set(r.changes.filter(on).map(c => c.item.en)), before = new Set(r.prev)
-    const added = [...now].filter(x => !before.has(x)), removed = [...before].filter(x => !now.has(x))
-    again = '<div class="again"><b>這是之前用本網站調整過的檔案。</b>下面的清單仍然列出「和原作者版本相比」的全部調整（上次加的那段會先拿掉再重新判斷，不會疊兩層）。<br>'
-      + (added.length || removed.length
-        ? '和你上傳的這份相比（因為價格變動或你的勾選）：'
-          + (added.length ? `<br>・新增調整 ${added.length} 種：${added.map(zh).join('、')}` : '')
-          + (removed.length ? `<br>・取消調整 ${removed.length} 種（恢復原作者樣式）：${removed.map(zh).join('、')}` : '')
-          + '<br>需要的話再下載一次新檔。'
-        : '<b>和你上傳的這份完全相同，不需要重新下載。</b>')
-      + '</div>'
-    r.changes.forEach(c => { c.isNew = !c.kept && !before.has(c.item.en) })
-  }
-  $('res').innerHTML = `<p class="file">檔案：${esc(current.name)}</p>${again}
+  $('res').innerHTML = `<p class="file">檔案：${esc(current.name)}</p>
     <div class="sum"><div><b>${r.stats.items}</b><small>有台服價格的物品</small></div><div><b>${r.stats.items - r.applied}</b><small>照原作者，不動${kept ? `（含你選不更改的 ${kept} 種）` : ''}</small></div>
       <div><b style="color:var(--up)">${up.filter(on).length}</b><small>升級：台服比作者分級貴很多</small></div><div><b style="color:var(--dn)">${dn.filter(on).length}</b><small>降級：台服比作者分級便宜很多</small></div></div>
-    ${r.applied ? `<div class="dl"><button type="button" id="save">⬇ 下載調整後的過濾器</button><span>檔名：<code>${esc(r.name)}</code>。放回「文件 › My Games › Path of Exile」，在遊戲「選項 › 遊戲 › 物品過濾器」選它；原本的檔案不會被覆蓋。</span></div>
+    ${r.applied ? `<div class="dl"><button type="button" id="save">⬇ 下載調整後的過濾器</button><span>檔名：<code>${esc(r.name)}</code>。放回「文件 › My Games › Path of Exile」，在遊戲「選項 › 遊戲 › 物品過濾器」選它。檔名和你上傳的相同，放回資料夾會取代原檔，想留著原檔請先備份。</span></div>
     <p class="note">判斷方式：物品的台服價格，和原本同樣式物品的台服中間價差 5 倍以上才調整；升級一定變得更醒目、降級一定變得較不起眼，降級不會把東西隱藏。不想改的物品，把那一列的「套用這項調整」取消勾選就好，這個選擇會記住，下次產生也沿用。價格會變動，想更新就回來重新產生一次。</p>`
     : r.changes.length ? '<div class="msg">所有調整你都選了不更改，下載的檔案會和原本一樣，所以不提供下載。</div>' : '<div class="msg">這份過濾器的分級和台服行情差不多，沒有需要調整的物品。</div>'}
     ${sect('up', '升級', '台服價格比原作者給的分級高很多，改成更醒目的樣式，避免漏撿。', up)}

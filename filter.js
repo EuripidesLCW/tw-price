@@ -81,15 +81,8 @@
   function twFilter(D, original, fileName, opt = {}) {
     const area = 83 // 模擬高階地圖；實測文子各階段的結果不受區域等級影響，所以不讓玩家選
     const bom = original.charCodeAt(0) === 0xfeff
-    let body = bom ? original.slice(1) : original
-    // 已經產生過的檔案又拿來產生：先拿掉上次加的那段，只用原過濾器判斷，不會疊兩層
-    const MARK = '# ===== 以下為原過濾器 ====='
-    const at = body.indexOf(MARK)
-    let prev = null // 上傳的是之前產生過的檔案：上次調整了哪些物品（英文名）
-    if (at >= 0 && /^# =+\r?\n# 台服價格/.test(body)) {
-      prev = [...body.slice(0, at).matchAll(/^\s*BaseType == (.*)$/gm)].flatMap(m => [...m[1].matchAll(/"([^"]+)"/g)].map(x => x[1]))
-      body = body.slice(at + MARK.length).replace(/^(\r?\n)+/, '')
-    }
+    // 每次上傳都是新的開始：上傳的檔案（就算是之前產生過的）原樣當作判斷基準
+    const body = bom ? original.slice(1) : original
     const keep = new Set(opt.keep ?? []) // 玩家勾選「不更改」的物品（英文名）
     const blocks = parse(body)
     if (blocks.filter(b => b.conds.length).length < 20) throw new Error('這個檔案看起來不是過濾器（讀不到規則）')
@@ -103,25 +96,25 @@
       items.push({ it, v, ...r, key: it.cls + '#' + lookKey(r) })
     }
     // 3. 依「類別＋樣子」分組，算台服價格中間值
-    const groups = new Map()
-    for (const x of items) (groups.get(x.key) ?? groups.set(x.key, { items: [] }).get(x.key)).items.push(x)
-    for (const g of groups.values()) {
-      g.med = median(g.items.map(x => x.v))
-      const sounds = new Set(g.items.map(x => soundOf(x.style)))
-      g.sound = sounds.size === 1 ? [...sounds][0] : null // 整組同一個音效才借音效；各自專屬音效就不借
-      g.sample = g.items[0]
+    function grouping() {
+      const groups = new Map()
+      for (const x of items) (groups.get(x.key) ?? groups.set(x.key, { items: [] }).get(x.key)).items.push(x)
+      for (const g of groups.values()) {
+        g.med = median(g.items.map(x => x.v))
+        const sounds = new Set(g.items.map(x => soundOf(x.style)))
+        g.sound = sounds.size === 1 ? [...sounds][0] : null // 整組同一個音效才借音效；各自專屬音效就不借
+        g.sample = g.items.find(x => !x.moved) ?? g.items[0] // 借樣式時以作者原本就放在這組的物品為代表
+      }
+      return groups
     }
-    const usable = [...groups.values()].filter(g => g.items.length >= MIN_GROUP)
-
-    // 4. 找出差很多的物品
-    const changes = []
-    for (const x of items) {
+    // 4. 找出差很多的物品，替它找同類中價位最接近、而且確實更醒目／更不起眼的樣式
+    function decide(x, groups, usable) {
       const g = groups.get(x.key)
-      if (g.items.length < MIN_GROUP) continue // 作者的專屬樣式，不動
-      if (FIXED.has(x.it.en)) continue // 混沌石、神聖石是計價單位，作者怎麼顯示就怎麼顯示
-      if (Math.max(x.v, g.med) < MIN_VALUE) continue // 都是便宜貨（例：0.1 和 1 混沌石），差幾倍也沒有撿不撿的差別
+      if (g.items.length < MIN_GROUP) return null // 作者的專屬樣式，不動
+      if (FIXED.has(x.it.en)) return null // 混沌石、神聖石是計價單位，作者怎麼顯示就怎麼顯示
+      if (Math.max(x.v, g.med) < MIN_VALUE) return null // 都是便宜貨（例：0.1 和 1 混沌石），差幾倍也沒有撿不撿的差別
       const r = x.v / g.med
-      if (r < RATIO && r > 1 / RATIO) continue
+      if (r < RATIO && r > 1 / RATIO) return null
       const up = r > 1, now = loud(x.show, x.style)
       let best = null, bestStyle = null
       for (const t of usable) {
@@ -135,12 +128,39 @@
         if (up ? loud(true, st) <= now : loud(true, st) >= now) continue
         best = t; bestStyle = st
       }
-      if (best) changes.push({ x, from: g, to: best, up, style: bestStyle })
+      return best && { to: best, style: bestStyle }
     }
+    // 物品換組後，各組的中間價會跟著變，可能讓別的物品也跨過門檻；
+    // 所以反覆調整到沒有物品再變動為止。這樣下載的檔案再上傳一次，就不會再有調整（升級、降級都是 0）
+    for (const x of items) { x.orig = { show: x.show, style: x.style, key: x.key }; x.origMed = null }
+    const proposals = new Map() // 玩家選「不更改」的物品：程式原本建議的調整（只用來列在清單上）
+    let groups
+    for (let round = 0; round < 30; round++) {
+      groups = grouping()
+      if (round === 0) for (const x of items) x.origMed = groups.get(x.key).med
+      const usable = [...groups.values()].filter(g => g.items.length >= MIN_GROUP)
+      let moved = 0
+      for (const x of items) {
+        const d = decide(x, groups, usable)
+        if (!d) continue
+        if (keep.has(x.it.en)) { proposals.set(x, d); continue }
+        x.show = true; x.style = d.style; x.key = x.it.cls + '#' + lookKey({ show: true, style: d.style }); x.moved = true; x.target = d.to.sample.it
+        moved++
+      }
+      if (!moved) break
+    }
+    const finalGroups = groups
+    const changes = []
+    for (const x of items) {
+      const p = proposals.get(x)
+      if (x.moved && x.key !== x.orig.key) changes.push({ x, up: x.v > x.origMed, style: x.style, to: { med: finalGroups.get(x.key).med, sample: { it: x.target } }, kept: false })
+      else if (p && !x.moved) changes.push({ x, up: x.v > x.origMed, style: p.style, to: { med: p.to.med, sample: p.to.sample }, kept: true })
+    }
+    const usable = [...finalGroups.values()].filter(g => g.items.length >= MIN_GROUP)
 
     // 輸出：樣式完全相同的物品合成一條規則，加在最上面
     const byTo = new Map()
-    const applied = changes.filter(c => !keep.has(c.x.it.en))
+    const applied = changes.filter(c => !c.kept)
     for (const c of applied) { const k = c.up + '|' + c.to.sample.it.en + '|' + JSON.stringify(c.style); (byTo.get(k) ?? byTo.set(k, []).get(k)).push(c) }
     const p = n => String(n).padStart(2, '0'), s = new Date(D.updated - 3600e3), e = new Date(D.updated)
     const hour = `${s.getFullYear()}/${p(s.getMonth() + 1)}/${p(s.getDate())} ${p(s.getHours())}:00–${p(e.getHours())}:00`
@@ -161,11 +181,11 @@
     }
     out.push('# ===== 以下為原過濾器 =====', '')
     const nl = /\r\n/.test(body) ? '\r\n' : '\n'
-    const name = fileName.replace(/\.filter$/i, '').replace(/( 台服價格\d*)+$/, '') + ' 台服價格.filter' // 不會變成「台服價格 台服價格」
+    const name = fileName // 上傳什麼檔名，下載就是什麼檔名
     return {
       text: (bom ? '﻿' : '') + out.join(nl) + nl + body, name,
-      applied: applied.length, prev,
-      changes: changes.map(c => ({ item: c.x.it, value: c.x.v, up: c.up, kept: keep.has(c.x.it.en), from: { show: c.x.show, style: c.x.style, med: c.from.med, sample: c.from.sample.it },
+      applied: applied.length,
+      changes: changes.map(c => ({ item: c.x.it, value: c.x.v, up: c.up, kept: c.kept, from: { show: c.x.orig.show, style: c.x.orig.style, med: c.x.origMed },
         to: { show: true, style: c.style, med: c.to.med, sample: c.to.sample.it } })),
       stats: { rules: blocks.length, items: items.length, groups: usable.length, unmatched: items.filter(x => !x.from).length },
     }
