@@ -57,13 +57,21 @@ h1 small { font-size: 15px; color: var(--muted); font-weight: 400; margin-left: 
 #rate small { color: var(--muted); font-size: 13px; }
 .rate b { color: var(--accent); }
 .meta { width: 100%; color: var(--muted); font-size: 13px; }
+.meta ul { margin: 0; padding-left: 18px; line-height: 1.7; }
+.tools-help b { display: block; color: var(--text); margin-top: 8px; }
+.tools-help ul { margin: 2px 0 0; padding-left: 18px; line-height: 1.7; }
+.tools-help .warn-line { margin-top: 10px; }
+.tools-help .tag-s { font-size: 11px; font-weight: 400; color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 0 5px; margin-left: 4px; }
+.totop { position: fixed; right: 16px; bottom: 16px; z-index: 10; width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent); font: inherit; font-size: 12px; font-weight: 700; line-height: 1.1; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.35); opacity: 0; pointer-events: none; transform: translateY(8px); transition: opacity .2s, transform .2s; }
+.totop.show { opacity: 1; pointer-events: auto; transform: none; }
+.totop:hover { background: var(--accent); color: var(--bg); }
 .stamp { width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 10px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; font-size: 14px; }
 .stamp b { font-size: 16px; color: var(--accent); font-variant-numeric: tabular-nums; }
 .stamp .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); flex: none; }
 .stamp.old .dot { background: #d9534f; }
 .stamp.old b { color: #e07a76; }
 .stamp span { color: var(--muted); font-size: 13px; }
-.toast { position: fixed; right: 16px; bottom: 16px; z-index: 9; background: var(--accent); color: #1a1408; padding: 8px 14px; border-radius: 8px; font-weight: 600; opacity: 0; transform: translateY(8px); transition: .3s; pointer-events: none; }
+.toast { position: fixed; right: 16px; bottom: 74px; z-index: 9; background: var(--accent); color: #1a1408; padding: 8px 14px; border-radius: 8px; font-weight: 600; opacity: 0; transform: translateY(8px); transition: .3s; pointer-events: none; }
 .toast.show { opacity: 1; transform: none; }
 .bar { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 10px 0; display: flex; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid var(--line); }
 .search { position: relative; flex: 1 1 220px; min-width: 0; display: flex; }
@@ -229,10 +237,13 @@ html.ov .tools { display: none; }
       <a class="tool" href="filter.html">🧩 台服價格過濾器<small>依台服價格調整你的過濾器</small></a>
       <a class="tool" id="dlBtn" href="TwPriceOverlay.zip" download>⬇ 下載 Windows 小程式<small>免安裝 · 約 20 KB</small></a>
       <details class="tools-help"><summary>怎麼用？</summary>
-        <p><b>置頂小窗（免安裝）</b>：按「開啟置頂小窗」，會出現一個停在最上層的小視窗。遊戲裡游標指著物品按 <kbd>Ctrl</kbd>+<kbd>C</kbd>，再點一下小窗按 <kbd>Ctrl</kbd>+<kbd>V</kbd>，就會跳到它的價格。</p>
-        <p><b>Windows 小程式（推薦）</b>：下載後解壓縮，雙擊 <code>TwPriceOverlay.exe</code>。之後遊戲裡游標指著物品按 <kbd>Ctrl</kbd>+<kbd>C</kbd>，小窗就自動跳到它的價格，不用切換視窗；小窗關掉了，按 <kbd>Ctrl</kbd>+<kbd>C</kbd> 也會自動再打開。在小窗裡勾選「開機時自動在背景啟動」，以後就不用再去點 exe。第一次執行若出現「Windows 已保護您的電腦」，按「其他資訊」→「仍要執行」。</p>
-        <p>遊戲要設成「視窗化全螢幕」，小窗才蓋得上去。</p>
-        <p><b>卡片怎麼看</b>：上面一行是混沌石價、下面一行是神聖石價，都是 1 個物品的「掛單賣」參考價（最近幾小時賣家賣到的高價，願意等就賣得到，比成交均價高）；旁邊的 ▲▼ 是近 24 小時比前一天的漲跌（紅漲綠跌）。點開卡片可以看：「急著賣」大約拿到的價、成交均價、成交區間、成交數量、在售數量、比前一天／比一週前的漲跌，以及 7 天走勢圖。</p>
+        <b>置頂小窗 <span class="tag-s">免安裝</span></b>
+        <ul><li>按「開啟置頂小窗」</li><li>遊戲裡游標指著物品按 <kbd>Ctrl</kbd>+<kbd>C</kbd>，再點小窗按 <kbd>Ctrl</kbd>+<kbd>V</kbd></li></ul>
+        <b>Windows 小程式 <span class="tag-s">推薦</span></b>
+        <ul><li>解壓縮後雙擊 <code>TwPriceOverlay.exe</code></li><li>遊戲裡按 <kbd>Ctrl</kbd>+<kbd>C</kbd>，小窗自動顯示價格</li><li>在小窗勾「開機時自動在背景啟動」，以後不用再開</li><li>出現「Windows 已保護您的電腦」：按「其他資訊」→「仍要執行」</li></ul>
+        <b>台服價格過濾器</b>
+        <ul><li>上傳你的過濾器，依台服價格調整分級不準的物品</li></ul>
+        <p class="warn-line">遊戲要設成「視窗化全螢幕」，小窗才蓋得上去。</p>
       </details>
     </div>
   </header>
@@ -291,16 +302,20 @@ function stamp() {
   // 官方在整點約 20 分後發布上一個整點時段 → 下一個時段（end ~ end+1h）約在 end+1h+20分 出現
   const next = new Date(D.updated + 3600e3 + 20 * 60e3)
   $('stamp').innerHTML = `<i class="dot"></i>資料時間 <b>${day(start)} ${hhmm(start)}–${hhmm(end)}</b>`
-    + `<span>${old ? '⚠ 已超過 2 小時沒有新資料（可能是官方延遲或自動更新故障），價格可能已過時' : `此時段的成交彙總；下一個時段（${hhmm(end)}–${hhmm(new Date(D.updated + 3600e3))}）預計 ${hhmm(next)} 後出現`}`
-    + `${D.generated ? ` · 雲端抓取 ${hhmm(new Date(D.generated))}` : ''} · 本頁檢查 ${hhmm(new Date(lastCheck))}（每 2 分鐘自動檢查）</span>`
+    + `<span>${old ? '⚠ 已超過 2 小時沒有新資料（可能是官方延遲或自動更新故障），價格可能已過時' : `下一個時段（${hhmm(end)}–${hhmm(new Date(D.updated + 3600e3))}）約 ${hhmm(next)} 後更新`}`
+    + `<br>${D.generated ? `雲端抓取 ${hhmm(new Date(D.generated))} · ` : ''}本頁檢查 ${hhmm(new Date(lastCheck))}（每 2 分鐘）</span>`
 }
 let lastCheck = Date.now() // 本頁最後一次檢查新資料的時間
 function paint() {
   chaos = D.items.find(i => i.en === 'Chaos Orb'); divine = D.items.find(i => i.en === 'Divine Orb')
   $('league').textContent = D.league
   $('rate').innerHTML = `<span class="pair">${img(divine)} 1 = <b>${fmt(D.divinePrice)}</b> ${img(chaos)}</span><small>${span(0)} 成交均價，區間 ${fmt(D.divineRange[0])}～${fmt(D.divineRange[1])}${odd(D.divinePrice, D.divineRange) ? '，' + odd(D.divinePrice, D.divineRange) : ''}</small>`
-  $('meta').textContent = `卡片上的價格是「掛單賣」參考價：最近 6 個有成交的小時裡，每小時最高成交價的中位數，也就是願意掛單等待時大約賣得到的價（比成交均價高）。點開物品還有「急著賣」的價和成交均價。混沌石價和神聖石價各自來自實際成交，不互相換算。`
-    + `價格呈灰色：成交時段早於資料時間，點開可看是哪個時段。「售完」：資料時間內沒有人在賣。「無成交」：${D.hours} 小時內沒有成交，因此沒有價格。▲▼：近 24 小時的成交均價比前一天（紅漲綠跌），點開物品可看 7 天走勢。分類與順序與遊戲相同。`
+  $('meta').innerHTML = `<ul>`
+    + `<li>卡片價格是「掛單賣」參考價：願意掛單等，大約賣得到的價</li>`
+    + `<li>點開卡片：急著賣的價、成交均價、7 天走勢</li>`
+    + `<li>▲▼ 近 24 小時比前一天（紅漲綠跌）</li>`
+    + `<li>灰色價格：較早時段的成交｜售完：沒人在賣｜無成交：${D.hours} 小時內沒有成交</li>`
+    + `</ul>`
   const chips = ['所有', '熱門', ...D.cats]
   if (!chips.includes(cat)) cat = '所有'
   $('chips').innerHTML = chips.map(c => `<button class="chip" data-cat="${esc(c)}" aria-pressed="${c === cat}"><span class="ic">${catIcon(c).map(src => `<img src="${src}" alt="">`).join('')}</span>${esc(c)}</button>`).join('')
@@ -710,6 +725,11 @@ if (LIVE) {
   setInterval(tick, 400)
   tick()
 }
+</script>
+<button type="button" class="totop" id="totop" aria-label="回到頁面最上面">▲<br>頂端</button>
+<script>
+// 右下角「回到頂端」：往下捲超過一個畫面才出現
+(() => { const b = document.getElementById('totop'); addEventListener('scroll', () => b.classList.toggle('show', scrollY > innerHeight), { passive: true }); b.onclick = () => scrollTo({ top: 0, behavior: 'smooth' }) })()
 </script>
 </body>
 </html>

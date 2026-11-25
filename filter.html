@@ -51,7 +51,7 @@ h1 { font-size: 26px; margin: 8px 0 6px; }
 :root[data-theme="light"] .dl button { color: #fff; }
 .dl span { color: var(--muted); font-size: 13px; flex: 1 1 260px; }
 .dl code { color: var(--text); }
-.note { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+.note { color: var(--muted); font-size: 13px; margin: 8px 0 0; padding-left: 18px; line-height: 1.7; }
 h2 { font-size: 19px; margin: 30px 0 2px; display: flex; gap: 10px; align-items: baseline; }
 h2 small { font-size: 13px; color: var(--muted); font-weight: 400; }
 h2 .up { color: var(--up); } h2 .dn { color: var(--dn); }
@@ -87,11 +87,11 @@ tr.off .to > :not(.keepnote) { opacity: .35; filter: grayscale(1); }
 <main>
   <a class="back" href="./">← 回台服通貨價格</a>
   <h1>台服價格過濾器</h1>
-  <p class="lead">選你<b>現在正在用</b>的物品過濾器（文子、NeverSink 或任何一份都可以），依台服通貨交換的成交價，只調整「台服價格和作者分級差很多」的物品，其他都照原作者。調整前會列出每一項改動和台服價格，確認後再下載。<b>檔案只在你的瀏覽器裡處理，不會上傳。</b></p>
+  <p class="lead">依台服成交價，調整你過濾器裡分級不準的物品，其他照原作者。<br>檔案只在你的瀏覽器處理，不會上傳。</p>
   <ol class="steps">
-    <li><b>選檔案</b>：過濾器在「文件 › My Games › Path of Exile」，副檔名是 <code>.filter</code></li>
-    <li><b>看清單</b>：每個被調整的物品，原本和調整後掉在地上的樣子</li>
-    <li><b>下載</b>：新檔放回同一個資料夾，在遊戲「選項 › 遊戲 › 物品過濾器」選它</li>
+    <li><b>選檔案</b><br>文件 › My Games › Path of Exile 裡的 <code>.filter</code></li>
+    <li><b>看清單</b><br>原本和調整後掉在地上的樣子</li>
+    <li><b>下載</b><br>放回同一個資料夾，在遊戲裡選它</li>
   </ol>
 
   <label class="drop" id="drop">
@@ -115,7 +115,7 @@ const D = window.TW_DATA
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
 const hh = t => String(new Date(t).getHours()).padStart(2, '0') + ':00'
 const md = t => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()}` }
-$('dataTime').textContent = `價格資料：${md(D.updated - 3600e3)} ${hh(D.updated - 3600e3)}–${hh(D.updated)} 的成交（每小時更新）`
+$('dataTime').textContent = `價格：${md(D.updated - 3600e3)} ${hh(D.updated - 3600e3)}–${hh(D.updated)} 的成交，每小時更新`
 
 const fmt = v => v >= D.divinePrice ? (v / D.divinePrice).toFixed(v >= 10 * D.divinePrice ? 0 : 1) + ' 神聖石' : v >= 10 ? Math.round(v) + ' 混沌石' : +v.toPrecision(2) + ' 混沌石'
 const CN = { Red: '紅', Green: '綠', Blue: '藍', Brown: '棕', White: '白', Yellow: '黃', Cyan: '青', Grey: '灰', Orange: '橘', Pink: '粉紅', Purple: '紫' }
@@ -135,11 +135,11 @@ function look(s, name) {
   return `<div class="ground"><span class="lbl" style="${css}">${esc(name)}</span></div><div class="notes">${notes.join('<i>·</i>')}</div>`
 }
 const row = c => `<tr class="${c.kept ? 'off' : ''}"><td><div class="it"><img src="${esc(c.item.icon)}" alt="" loading="lazy"><div><b>${esc(c.item.name)}</b><small>${esc(c.item.en)}</small></div></div>
-    <label class="pick"><input type="checkbox" data-en="${esc(c.item.en)}"${c.kept ? '' : ' checked'}> 套用這項調整</label></td>
+    <label class="pick"><input type="checkbox" data-en="${esc(c.item.en)}"${c.kept ? '' : ' checked'}> 套用</label></td>
   <td class="v">${fmt(c.value)}</td>
-  <td>${look(c.from, c.item.name)}<div class="why">原本和它同樣式的物品，台服中間價約 ${fmt(c.from.med)}</div></td>
+  <td>${look(c.from, c.item.name)}<div class="why">同樣式物品約 ${fmt(c.from.med)}</div></td>
   <td class="arr">→</td>
-  <td class="to">${c.kept ? '<div class="keepnote">不更改，維持左邊原本的樣子</div>' : ''}${look(c.to, c.item.name)}<div class="why">改用作者給「${esc(c.to.sample.name)}」的樣式（這類物品台服中間價約 ${fmt(c.to.med)}）</div></td></tr>`
+  <td class="to">${c.kept ? '<div class="keepnote">不更改</div>' : ''}${look(c.to, c.item.name)}<div class="why">借用「${esc(c.to.sample.name)}」的樣式（同樣式約 ${fmt(c.to.med)}）</div></td></tr>`
 const sect = (cls, t, d, list) => list.length ? `<h2><span class="${cls}">${t}</span><small>${list.length} 種</small></h2><p class="sub">${d}</p>
   <div class="tw"><table><thead><tr><th>物品</th><th>台服價格</th><th>原本的樣子</th><th></th><th>調整後</th></tr></thead><tbody>${list.sort((a, b) => b.value - a.value).map(row).join('')}</tbody></table></div>` : ''
 
@@ -155,13 +155,13 @@ function run(scroll = true) {
   const up = r.changes.filter(c => c.up), dn = r.changes.filter(c => !c.up), on = c => !c.kept
   const kept = r.changes.length - r.applied
   $('res').innerHTML = `<p class="file">檔案：${esc(current.name)}</p>
-    <div class="sum"><div><b>${r.stats.items}</b><small>納入判斷的物品（有台服價格，不含命運卡）</small></div><div><b>${r.stats.items - r.applied}</b><small>照原作者，不動${kept ? `（含你選不更改的 ${kept} 種）` : ''}</small></div>
-      <div><b style="color:var(--up)">${up.filter(on).length}</b><small>升級：台服比作者分級貴很多</small></div><div><b style="color:var(--dn)">${dn.filter(on).length}</b><small>降級：台服比作者分級便宜很多</small></div></div>
-    ${r.applied ? `<div class="dl"><button type="button" id="save">⬇ 下載調整後的過濾器</button><span>檔名：<code>${esc(r.name)}</code>。放回「文件 › My Games › Path of Exile」，在遊戲「選項 › 遊戲 › 物品過濾器」選它。檔名和你上傳的相同，放回資料夾會取代原檔，想留著原檔請先備份。</span></div>
-    <p class="note">判斷方式：物品的台服價格，和原本同樣式物品的台服中間價差 5 倍以上才調整；升級一定變得更醒目、降級一定變得較不起眼，降級不會把東西隱藏。不想改的物品，把那一列的「套用這項調整」取消勾選就好（只對這次下載有效，重新上傳會重新判斷）。混沌石、神聖石、幻色石、崇高石、點金石、改造石是基本交易通貨，一律不調整；命運卡也不調整。價格會變動，想更新就回來重新產生一次。</p>`
-    : r.changes.length ? '<div class="msg">所有調整你都選了不更改，下載的檔案會和原本一樣，所以不提供下載。</div>' : '<div class="msg">這份過濾器的分級和台服行情差不多，沒有需要調整的物品。</div>'}
-    ${sect('up', '升級', '台服價格比原作者給的分級高很多，改成更醒目的樣式，避免漏撿。', up)}
-    ${sect('dn', '降級', '台服價格比原作者給的分級低很多，改成較不起眼的樣式（仍會顯示）。', dn)}`
+    <div class="sum"><div><b>${r.stats.items}</b><small>判斷的物品</small></div><div><b>${r.stats.items - r.applied}</b><small>照原樣${kept ? `（含不更改 ${kept}）` : ''}</small></div>
+      <div><b style="color:var(--up)">${up.filter(on).length}</b><small>升級</small></div><div><b style="color:var(--dn)">${dn.filter(on).length}</b><small>降級</small></div></div>
+    ${r.applied ? `<div class="dl"><button type="button" id="save">⬇ 下載調整後的過濾器</button><span>檔名和上傳的相同，放回資料夾會取代原檔（要留原檔請先備份）<br>遊戲裡：選項 › 遊戲 › 物品過濾器</span></div>
+    <ul class="note"><li>和同樣式物品的台服價差 5 倍以上才調整</li><li>升級更醒目；降級較不起眼，但不會隱藏</li><li>不調整：混沌石、神聖石、幻色石、崇高石、點金石、改造石、命運卡</li><li>不想改的，取消那一列的「套用」（只限這次下載）</li></ul>`
+    : r.changes.length ? '<div class="msg">全部選了不更改，不需要下載。</div>' : '<div class="msg">分級和台服行情相符，不需要調整。</div>'}
+    ${sect('up', '升級', '台服比作者分級貴很多，改得更醒目', up)}
+    ${sect('dn', '降級', '台服比作者分級便宜很多，改得較不起眼', dn)}`
   $('res').hidden = false
   const save = $('save')
   if (save) save.onclick = () => {
