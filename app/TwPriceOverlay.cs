@@ -27,7 +27,7 @@ static class App
 {
     const string Site = "https://euripideslcw.github.io/tw-price/";
     // 版本號：改了這個檔案要重新編譯並把這裡加 1；網站的 app-version.json 由 GitHub Actions 依此產生
-    const string Version = "1.2.0";
+    const string Version = "1.2.1";
     // 更新簽章的公鑰（RSA-3072）。對應的私鑰只在發布者的電腦上，不在任何網路服務裡：
     // 就算網站或 GitHub 帳號被入侵，沒有私鑰就簽不出能通過驗證的 exe，小程式不會安裝它。
     const string UpdatePublicKey = "<RSAKeyValue><Modulus>tVzDffWFSdWpzM3O1YJwzkjTgA75R3+GsAm97fXJuE59qO0M3ldv6Xk2YP2Fdg7ysMoy0BOgRWyy19rlEOGmZVGjt6cSN0/Kpi28qNN+fNZYATRfk82gB++03d+2hEk3MHxPliaWYUR0JupFPbxpx2wUWso93+CUBaB+R3Aq07aEWY6OWdNGpNE5M4scNSjRf4UspT26GJLRDjTP8UwUYFoVATcxpCEJsUIDS11v/ctlfTPwetzqmzk3PONu1905AeioBolCPHW23HqfPT+OXZ/5ucA1DPKukcxHdBHWpqoXkoW3ClzTqlxpXyeZfbUJp62L8Kz53Pi+WVpGiv9aFI3EnazY2PjzrG7A5wKxNyNnKEh+3Ok8QWG4W9QMm7Kp1SSmJj9MPC+5eVr67ZeS4qpAsoksY0FeMWguBxuOvZeaI3wl3Y7+giA5uDnhL1NIcNz/NCuhN7ljck+9f1RCm7+2+nBL44xPqXznYqFSU9Pt/7WR76FYoMoHBel/mMyh</Modulus><Exponent>AQAB</Exponent></RSAKeyValue>";
@@ -411,9 +411,14 @@ static class App
         if (!wide) StartTopThread();
     }
 
+    // 遊戲（視窗化全螢幕）被點回前景時會蓋過小窗，所以持續每 1.5 秒把小窗放回最上層。
+    // SWP_NOACTIVATE：只改上下順序，不搶遊戲的焦點。只啟動一次。
+    static bool TopStarted;
     static void StartTopThread()
     {
-        var t = new Thread(delegate () { for (int i = 0; i < 40; i++) { Thread.Sleep(400); if (ApplyTop()) return; } });
+        if (TopStarted) return;
+        TopStarted = true;
+        var t = new Thread(delegate () { while (true) { Thread.Sleep(1500); if (KeepTop) ApplyTop(); } });
         t.IsBackground = true;
         t.Start();
     }
