@@ -144,9 +144,8 @@ const sect = (cls, t, d, list) => list.length ? `<h2><span class="${cls}">${t}</
   <div class="tw"><table><thead><tr><th>物品</th><th>台服價格</th><th>原本的樣子</th><th></th><th>調整後</th></tr></thead><tbody>${list.sort((a, b) => b.value - a.value).map(row).join('')}</tbody></table></div>` : ''
 
 let current = null // { text, name }
-// 玩家選「不更改」的物品，記在這台電腦的瀏覽器裡，下次產生時沿用
+// 這次上傳裡，玩家取消勾選「套用這項調整」的物品；每次上傳都是新的開始，換檔案就清空
 let keep = []
-try { keep = JSON.parse(localStorage.getItem('filterKeep') || '[]') } catch {}
 function run(scroll = true) {
   if (!current) return
   $('err').hidden = true
@@ -159,7 +158,7 @@ function run(scroll = true) {
     <div class="sum"><div><b>${r.stats.items}</b><small>有台服價格的物品</small></div><div><b>${r.stats.items - r.applied}</b><small>照原作者，不動${kept ? `（含你選不更改的 ${kept} 種）` : ''}</small></div>
       <div><b style="color:var(--up)">${up.filter(on).length}</b><small>升級：台服比作者分級貴很多</small></div><div><b style="color:var(--dn)">${dn.filter(on).length}</b><small>降級：台服比作者分級便宜很多</small></div></div>
     ${r.applied ? `<div class="dl"><button type="button" id="save">⬇ 下載調整後的過濾器</button><span>檔名：<code>${esc(r.name)}</code>。放回「文件 › My Games › Path of Exile」，在遊戲「選項 › 遊戲 › 物品過濾器」選它。檔名和你上傳的相同，放回資料夾會取代原檔，想留著原檔請先備份。</span></div>
-    <p class="note">判斷方式：物品的台服價格，和原本同樣式物品的台服中間價差 5 倍以上才調整；升級一定變得更醒目、降級一定變得較不起眼，降級不會把東西隱藏。不想改的物品，把那一列的「套用這項調整」取消勾選就好，這個選擇會記住，下次產生也沿用。價格會變動，想更新就回來重新產生一次。</p>`
+    <p class="note">判斷方式：物品的台服價格，和原本同樣式物品的台服中間價差 5 倍以上才調整；升級一定變得更醒目、降級一定變得較不起眼，降級不會把東西隱藏。不想改的物品，把那一列的「套用這項調整」取消勾選就好（只對這次下載有效，重新上傳會重新判斷）。混沌石、神聖石、幻色石是基本交易通貨，一律不調整。價格會變動，想更新就回來重新產生一次。</p>`
     : r.changes.length ? '<div class="msg">所有調整你都選了不更改，下載的檔案會和原本一樣，所以不提供下載。</div>' : '<div class="msg">這份過濾器的分級和台服行情差不多，沒有需要調整的物品。</div>'}
     ${sect('up', '升級', '台服價格比原作者給的分級高很多，改成更醒目的樣式，避免漏撿。', up)}
     ${sect('dn', '降級', '台服價格比原作者給的分級低很多，改成較不起眼的樣式（仍會顯示）。', dn)}`
@@ -178,13 +177,13 @@ $('res').addEventListener('change', e => {
   const en = e.target.dataset?.en
   if (!en) return
   keep = e.target.checked ? keep.filter(x => x !== en) : [...new Set([...keep, en])]
-  try { localStorage.setItem('filterKeep', JSON.stringify(keep)) } catch {}
   run(false)
 })
 async function load(f) {
   if (!f) return
   if (!/\.filter$/i.test(f.name)) { $('err').textContent = '請選副檔名是 .filter 的過濾器檔案。'; $('err').hidden = false; return }
   current = { text: await f.text(), name: f.name }
+  keep = []
   run()
 }
 // 右下角「回到頂端」：往下捲超過一個畫面才出現
