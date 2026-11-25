@@ -152,6 +152,30 @@ function openWindow() {
   return child
 }
 
+// ── 桌面捷徑 ──────────────────────────────────────────────
+// 第一次跑的時候建一個，之後雙擊桌面圖示就好——沒有人會想每次都去記資料夾路徑。
+// 視窗設成最小化：那個主控台只是用來看更新訊息的，不需要佔著畫面。
+// （tw-patch/launch.mjs 也是用同一套做法管它自己的捷徑。）
+function ensureShortcut() {
+  const cmd = path.join(here, '台服通貨價格 疊加.cmd')
+  if (!fs.existsSync(cmd)) return
+  const ps = `
+$ErrorActionPreference = 'SilentlyContinue'
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$lnk = Join-Path ([Environment]::GetFolderPath('Desktop')) '台服通貨價格 疊加.lnk'
+if (-not (Test-Path $lnk)) {
+  $s = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk)
+  $s.TargetPath = '${cmd.replace(/'/g, "''")}'
+  $s.WorkingDirectory = '${here.replace(/'/g, "''")}'
+  $s.WindowStyle = 7
+  $s.Description = 'POE 台服通貨價格，釘在遊戲上，遊戲裡 Ctrl+C 就查價'
+  $s.Save()
+  "已在桌面建立捷徑：台服通貨價格 疊加"
+}`
+  execFile('powershell', ['-NoProfile', '-Command', ps], { windowsHide: true },
+    (e, out) => { const t = (out || '').trim(); if (t) console.log(t) })
+}
+
 // ── 自動更新價格 ──────────────────────────────────────────
 // 本機的 data.js 不會自己更新：雲端那份是 GitHub Actions 每 20 分鐘重跑 price.mjs
 // 發布到 Pages，本機這份只有自己跑過才會換。疊加視窗讀的是**本機**檔案，
@@ -178,6 +202,7 @@ server.listen(PORT, '127.0.0.1', async () => {
   console.log(`疊加模式  http://127.0.0.1:${PORT}/?overlay=1`)
   console.log('遊戲裡把滑鼠移到物品上按 Ctrl+C，這個視窗就會跳到那個物品')
   console.log('關掉視窗就會結束；或在這裡按 Ctrl+C')
+  ensureShortcut()
   // 先更新再開視窗：開起來第一眼就該是今天的價格
   await refresh()
   const timer = setInterval(refresh, REFRESH_MS)
