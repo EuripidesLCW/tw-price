@@ -6,3 +6,8 @@ index.html
 # 只在這台電腦用的啟動檔
 台服通貨價格.cmd
 台服通貨價格 疊加.cmd
+# 簽章私鑰絕不進版本庫（應放在使用者資料夾的 .tw-price-signing 底下，這裡只是保險）
+private*.xml
+*.pem
+*.key
+*.pfx

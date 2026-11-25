@@ -27,7 +27,10 @@ static class App
 {
     const string Site = "https://euripideslcw.github.io/tw-price/";
     // 版本號：改了這個檔案要重新編譯並把這裡加 1；網站的 app-version.json 由 GitHub Actions 依此產生
-    const string Version = "1.1.0";
+    const string Version = "1.2.0";
+    // 更新簽章的公鑰（RSA-3072）。對應的私鑰只在發布者的電腦上，不在任何網路服務裡：
+    // 就算網站或 GitHub 帳號被入侵，沒有私鑰就簽不出能通過驗證的 exe，小程式不會安裝它。
+    const string UpdatePublicKey = "<RSAKeyValue><Modulus>tVzDffWFSdWpzM3O1YJwzkjTgA75R3+GsAm97fXJuE59qO0M3ldv6Xk2YP2Fdg7ysMoy0BOgRWyy19rlEOGmZVGjt6cSN0/Kpi28qNN+fNZYATRfk82gB++03d+2hEk3MHxPliaWYUR0JupFPbxpx2wUWso93+CUBaB+R3Aq07aEWY6OWdNGpNE5M4scNSjRf4UspT26GJLRDjTP8UwUYFoVATcxpCEJsUIDS11v/ctlfTPwetzqmzk3PONu1905AeioBolCPHW23HqfPT+OXZ/5ucA1DPKukcxHdBHWpqoXkoW3ClzTqlxpXyeZfbUJp62L8Kz53Pi+WVpGiv9aFI3EnazY2PjzrG7A5wKxNyNnKEh+3Ok8QWG4W9QMm7Kp1SSmJj9MPC+5eVr67ZeS4qpAsoksY0FeMWguBxuOvZeaI3wl3Y7+giA5uDnhL1NIcNz/NCuhN7ljck+9f1RCm7+2+nBL44xPqXznYqFSU9Pt/7WR76FYoMoHBel/mMyh</Modulus><Exponent>AQAB</Exponent></RSAKeyValue>";
     const int BasePort = 47811;
     static int Port;
     static readonly string Dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TwPriceOverlay");
@@ -299,15 +302,16 @@ static class App
         {
             string json;
             using (var w = new WebClient()) { w.Encoding = Encoding.UTF8; json = w.DownloadString(Site + "app-version.json?t=" + DateTime.UtcNow.Ticks); }
-            string ver = JsonField(json, "version"), sha = JsonField(json, "sha256");
+            string ver = JsonField(json, "version"), sha = JsonField(json, "sha256"), sig = JsonField(json, "sig");
             Version remote;
-            if (sha == null || !System.Version.TryParse(ver, out remote) || remote <= new Version(Version)) return;
+            if (sha == null || sig == null || !System.Version.TryParse(ver, out remote) || remote <= new Version(Version)) return;
 
             byte[] exe;
             using (var w = new WebClient()) exe = w.DownloadData(Site + "TwPriceOverlay.exe?t=" + DateTime.UtcNow.Ticks);
             string got;
             using (var h = System.Security.Cryptography.SHA256.Create()) got = BitConverter.ToString(h.ComputeHash(exe)).Replace("-", "").ToLowerInvariant();
             if (got != sha.ToLowerInvariant()) return; // 下載不完整或內容不符：不使用，下次再試
+            if (!SignatureOk(exe, sig)) return;         // 簽章不符：可能被竄改，絕不安裝
 
             try
             {
@@ -336,6 +340,21 @@ static class App
         try { Single.ReleaseMutex(); Single.Dispose(); } catch { }
         Process.Start(ExePath, "--restart");
         Environment.Exit(0);
+    }
+
+    // 用內建公鑰驗證發布者的簽章（RSA、SHA-256、PKCS#1 v1.5，對應 sign-exe.ps1）
+    static bool SignatureOk(byte[] data, string sigBase64)
+    {
+        try
+        {
+            using (var rsa = new System.Security.Cryptography.RSACryptoServiceProvider())
+            {
+                rsa.PersistKeyInCsp = false;
+                rsa.FromXmlString(UpdatePublicKey);
+                return rsa.VerifyData(data, System.Security.Cryptography.CryptoConfig.MapNameToOID("SHA256"), Convert.FromBase64String(sigBase64));
+            }
+        }
+        catch { return false; }
     }
 
     // 只讀扁平 JSON 的字串欄位（app-version.json 只有兩個欄位，不值得引入 JSON 函式庫）
