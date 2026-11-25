@@ -85,7 +85,11 @@
     // 已經產生過的檔案又拿來產生：先拿掉上次加的那段，只用原過濾器判斷，不會疊兩層
     const MARK = '# ===== 以下為原過濾器 ====='
     const at = body.indexOf(MARK)
-    if (at >= 0 && /^# =+\r?\n# 台服價格/.test(body)) body = body.slice(at + MARK.length).replace(/^(\r?\n)+/, "")
+    let prev = null // 上傳的是之前產生過的檔案：上次調整了哪些物品（英文名）
+    if (at >= 0 && /^# =+\r?\n# 台服價格/.test(body)) {
+      prev = [...body.slice(0, at).matchAll(/^\s*BaseType == (.*)$/gm)].flatMap(m => [...m[1].matchAll(/"([^"]+)"/g)].map(x => x[1]))
+      body = body.slice(at + MARK.length).replace(/^(\r?\n)+/, '')
+    }
     const keep = new Set(opt.keep ?? []) // 玩家勾選「不更改」的物品（英文名）
     const blocks = parse(body)
     if (blocks.filter(b => b.conds.length).length < 20) throw new Error('這個檔案看起來不是過濾器（讀不到規則）')
@@ -157,10 +161,10 @@
     }
     out.push('# ===== 以下為原過濾器 =====', '')
     const nl = /\r\n/.test(body) ? '\r\n' : '\n'
-    const name = fileName.replace(/\.filter$/i, '') + ' 台服價格.filter'
+    const name = fileName.replace(/\.filter$/i, '').replace(/( 台服價格\d*)+$/, '') + ' 台服價格.filter' // 不會變成「台服價格 台服價格」
     return {
       text: (bom ? '﻿' : '') + out.join(nl) + nl + body, name,
-      applied: applied.length,
+      applied: applied.length, prev,
       changes: changes.map(c => ({ item: c.x.it, value: c.x.v, up: c.up, kept: keep.has(c.x.it.en), from: { show: c.x.show, style: c.x.style, med: c.from.med, sample: c.from.sample.it },
         to: { show: true, style: c.style, med: c.to.med, sample: c.to.sample.it } })),
       stats: { rules: blocks.length, items: items.length, groups: usable.length, unmatched: items.filter(x => !x.from).length },
