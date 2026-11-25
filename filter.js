@@ -7,7 +7,9 @@
 // 調整只寫在檔案最上面，原內容一字不改。網頁與 node 測試共用：twFilter(D, 原檔文字, 原檔名) → { text, name, changes, stats }
 (function (root) {
   const RATIO = 5        // 差幾倍以上才調整
-  const MIN_GROUP = 3    // 一種樣式至少要有幾個物品，才拿來推算價位、借給別的物品用（少於這個數，多半是作者給特定物品的專屬樣式，不動）
+  const MIN_VALUE = 5    // 物品價格和原組中間價都不到 5 混沌石就不調整
+  const FIXED = new Set(['Chaos Orb', 'Divine Orb'])
+  const MIN_GROUP = 3   // 一種樣式至少要有幾個物品，才拿來推算價位、借給別的物品用（少於這個數，多半是作者給特定物品的專屬樣式，不動）
   const STYLE = new Set(['SetTextColor', 'SetBackgroundColor', 'SetBorderColor', 'SetFontSize', 'PlayAlertSound', 'PlayAlertSoundPositional', 'CustomAlertSound', 'CustomAlertSoundOptional',
     'DisableDropSound', 'EnableDropSound', 'DisableDropSoundIfAlertSound', 'EnableDropSoundIfAlertSound', 'MinimapIcon', 'PlayEffect'])
   const SOUND = new Set(['PlayAlertSound', 'PlayAlertSoundPositional', 'CustomAlertSound', 'CustomAlertSoundOptional'])
@@ -107,6 +109,8 @@
     for (const x of items) {
       const g = groups.get(x.key)
       if (g.items.length < MIN_GROUP) continue // 作者的專屬樣式，不動
+      if (FIXED.has(x.it.en)) continue // 混沌石、神聖石是計價單位，作者怎麼顯示就怎麼顯示
+      if (Math.max(x.v, g.med) < MIN_VALUE) continue // 都是便宜貨（例：0.1 和 1 混沌石），差幾倍也沒有撿不撿的差別
       const r = x.v / g.med
       if (r < RATIO && r > 1 / RATIO) continue
       const up = r > 1, now = loud(x.show, x.style)
