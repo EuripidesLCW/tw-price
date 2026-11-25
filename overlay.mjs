@@ -30,55 +30,13 @@ const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? proces
 const PORT = +arg('--port', 8766)
 const TITLE_MARK = '疊加' // 置頂時用視窗標題找它；疊加模式的頁面會把標題改成含這兩個字
 
-// ── 物品名索引 ────────────────────────────────────────────
-// 從 data.js 讀。price.mjs 每次更新都會重寫它，所以每次有人複製東西就重讀一次檔案，
-// 不要快取在記憶體裡——不然開著疊加視窗跨過更新時間點，新物品會查不到。
-function nameIndex() {
-  const s = fs.readFileSync(path.join(here, 'data.js'), 'utf8')
-  const d = JSON.parse(s.slice(s.indexOf('=') + 1))
-  const ix = new Map()
-  for (const it of d.items) {
-    ix.set(it.name, it.name)
-    if (it.en) ix.set(it.en.toLowerCase(), it.name)
-  }
-  return ix
-}
-
-/**
- * 從 Ctrl+C 複製出來的物品文字裡找出物品名。
- *
- * 遊戲複製出來長這樣（台服客戶端是中文，國際服是英文）：
- *   物品種類: 堆疊通貨
- *   稀有度: 通貨
- *   混沌石
- *   --------
- *   堆疊數量: 1/10
- *   ...
- *
- * 只看第一段（第一條分隔線之前），因為後面的說明文字裡也會出現別的通貨名稱
- * （例如「右鍵點擊後左鍵點擊一個稀有物品」之類的敘述會提到其他物品）。
- * 丟掉「鍵: 值」那種標頭行，剩下的逐行比對名稱索引，第一個對得上的就是答案。
- * 比對不到就回 null——使用者複製的可能根本不是物品。
- */
-export function itemName(text, ix) {
-  const lines = String(text).split(/\r?\n/)
-  const end = lines.findIndex(l => /^-{3,}$/.test(l.trim()))
-  const head = (end < 0 ? lines : lines.slice(0, end))
-    .map(l => l.trim())
-    .filter(l => l && !/^[^:：]{1,12}[:：]\s/.test(l))
-  for (const l of head) {
-    // 「高階的混沌石」這種前綴在通貨上不會出現，但稀有物品的名字會有兩行（名字＋基底），
-    // 所以逐行試，而不是只試最後一行
-    const hit = ix.get(l) ?? ix.get(l.toLowerCase())
-    if (hit) return hit
-  }
-  return null
-}
-
 // ── 剪貼簿監看 ────────────────────────────────────────────
+//
+// 這裡**不解析**物品名，只把原文轉給網頁。解析放在 template.html，因為「切回網頁
+// 按 Ctrl+V」那條路本來就要在瀏覽器裡解析一次；兩邊各寫一份規則，遲早會長歪成兩套。
 // 用一個常駐的 PowerShell 迴圈，不是每 300ms 開一次行程：開行程一次 50–100ms CPU，
 // 一秒三次會讓風扇一直轉，而這個東西是要開著打一整晚的。
-let current = { seq: 0, name: null, at: 0 }
+let current = { seq: 0, text: '', at: 0 }
 // 每 10 圈（約 3 秒）確認一次父行程還在：node 要是被強制中止（工作管理員、當掉），
 // 這個迴圈不一定會跟著死，那就會變成一個一直在讀剪貼簿的孤兒行程
 const PS_WATCH = parentPid => `
@@ -107,14 +65,10 @@ function watchClipboard() {
       if (!line) continue
       let text
       try { text = JSON.parse(line) } catch { continue }
-      let name = null
-      try { name = itemName(text, nameIndex()) } catch (e) { console.error('查名字失敗：' + e.message) }
-      // 複製到非物品的東西時保留上一次的結果：使用者可能只是去複製了別的字，
-      // 不代表他想把價格視窗清空
-      if (name) {
-        current = { seq: current.seq + 1, name, at: Date.now() }
-        console.log(`複製到：${name}`)
-      }
+      current = { seq: current.seq + 1, text, at: Date.now() }
+      // 網頁那端認不出物品時會什麼都不做，畫面保留上一筆——使用者可能只是去複製了
+      // 別的字，不代表他想把價格清空
+      console.log('複製到：' + text.split(/\r?\n/).filter(l => l.trim())[0]?.slice(0, 20))
     }
   })
   ps.on('exit', c => console.error(`剪貼簿監看結束（代碼 ${c}），Ctrl+C 連動停止`))
