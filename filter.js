@@ -8,7 +8,7 @@
 (function (root) {
   const RATIO = 5        // 差幾倍以上才調整
   const MIN_VALUE = 5    // 物品價格和原組中間價都不到 5 混沌石就不調整
-  const FIXED = new Set(['Chaos Orb', 'Divine Orb', 'Chromatic Orb']) // 基本交易通貨：作者怎麼顯示就怎麼顯示，一律不調整
+  const FIXED = new Set(['Chaos Orb', 'Divine Orb', 'Chromatic Orb', 'Exalted Orb', 'Orb of Alchemy', 'Orb of Alteration']) // 基本交易通貨：作者怎麼顯示就怎麼顯示，一律不調整
   const MIN_GROUP = 3   // 一種樣式至少要有幾個物品，才拿來推算價位、借給別的物品用（少於這個數，多半是作者給特定物品的專屬樣式，不動）
   const STYLE = new Set(['SetTextColor', 'SetBackgroundColor', 'SetBorderColor', 'SetFontSize', 'PlayAlertSound', 'PlayAlertSoundPositional', 'CustomAlertSound', 'CustomAlertSoundOptional',
     'DisableDropSound', 'EnableDropSound', 'DisableDropSoundIfAlertSound', 'EnableDropSoundIfAlertSound', 'MinimapIcon', 'PlayEffect'])
