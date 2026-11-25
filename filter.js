@@ -81,7 +81,12 @@
   function twFilter(D, original, fileName, opt = {}) {
     const area = 83 // 模擬高階地圖；實測文子各階段的結果不受區域等級影響，所以不讓玩家選
     const bom = original.charCodeAt(0) === 0xfeff
-    const body = bom ? original.slice(1) : original
+    let body = bom ? original.slice(1) : original
+    // 已經產生過的檔案又拿來產生：先拿掉上次加的那段，只用原過濾器判斷，不會疊兩層
+    const MARK = '# ===== 以下為原過濾器 ====='
+    const at = body.indexOf(MARK)
+    if (at >= 0 && /^# =+\r?\n# 台服價格/.test(body)) body = body.slice(at + MARK.length).replace(/^(\r?\n)+/, "")
+    const keep = new Set(opt.keep ?? []) // 玩家勾選「不更改」的物品（英文名）
     const blocks = parse(body)
     if (blocks.filter(b => b.conds.length).length < 20) throw new Error('這個檔案看起來不是過濾器（讀不到規則）')
 
@@ -131,13 +136,14 @@
 
     // 輸出：樣式完全相同的物品合成一條規則，加在最上面
     const byTo = new Map()
-    for (const c of changes) { const k = c.up + '|' + c.to.sample.it.en + '|' + JSON.stringify(c.style); (byTo.get(k) ?? byTo.set(k, []).get(k)).push(c) }
+    const applied = changes.filter(c => !keep.has(c.x.it.en))
+    for (const c of applied) { const k = c.up + '|' + c.to.sample.it.en + '|' + JSON.stringify(c.style); (byTo.get(k) ?? byTo.set(k, []).get(k)).push(c) }
     const p = n => String(n).padStart(2, '0'), s = new Date(D.updated - 3600e3), e = new Date(D.updated)
     const hour = `${s.getFullYear()}/${p(s.getMonth() + 1)}/${p(s.getDate())} ${p(s.getHours())}:00–${p(e.getHours())}:00`
     const out = [
       '# ==================================================',
       `# 台服價格調整（${D.league}，依 ${hour} 為止的台服通貨交換成交價）`,
-      `# 只調整台服價格和原作者分級差 ${RATIO} 倍以上的 ${changes.length} 種物品，改用原作者自己同價位物品的樣式；`,
+      `# 只調整台服價格和原作者分級差 ${RATIO} 倍以上的 ${applied.length} 種物品，改用原作者自己同價位物品的樣式；`,
       '# 其他物品、以及以下原過濾器內容都沒有修改。價格會變，想更新請到網站重新產生。',
       '# ==================================================',
       '',
@@ -154,7 +160,8 @@
     const name = fileName.replace(/\.filter$/i, '') + ' 台服價格.filter'
     return {
       text: (bom ? '﻿' : '') + out.join(nl) + nl + body, name,
-      changes: changes.map(c => ({ item: c.x.it, value: c.x.v, up: c.up, from: { show: c.x.show, style: c.x.style, med: c.from.med, sample: c.from.sample.it },
+      applied: applied.length,
+      changes: changes.map(c => ({ item: c.x.it, value: c.x.v, up: c.up, kept: keep.has(c.x.it.en), from: { show: c.x.show, style: c.x.style, med: c.from.med, sample: c.from.sample.it },
         to: { show: true, style: c.style, med: c.to.med, sample: c.to.sample.it } })),
       stats: { rules: blocks.length, items: items.length, groups: usable.length, unmatched: items.filter(x => !x.from).length },
     }

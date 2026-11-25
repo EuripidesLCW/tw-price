@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>台服價格過濾器</title>
+<link rel="icon" type="image/png" href="https://webtw.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lNb2RWYWx1ZXMiLCJzY2FsZSI6MX1d/ec48896769/CurrencyModValues.png">
+<link rel="apple-touch-icon" href="https://webtw.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lNb2RWYWx1ZXMiLCJzY2FsZSI6MX1d/ec48896769/CurrencyModValues.png">
 <meta name="description" content="上傳你正在用的物品過濾器，依台服通貨交換成交價，只調整分級差很多的物品，並列出每一項改動。">
 <script>try { if (localStorage.getItem("theme") === "light") document.documentElement.dataset.theme = "light" } catch {}</script>
 <style>
@@ -71,6 +73,10 @@ tr:last-child td { border-bottom: 0; }
 .notes { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
 .notes i { font-style: normal; margin: 0 6px; opacity: .5; }
 .beam { display: inline-block; width: 4px; height: 12px; background: var(--c); margin-right: 4px; vertical-align: -1px; border-radius: 2px; box-shadow: 0 0 6px var(--c); }
+.pick { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px; color: var(--muted); cursor: pointer; user-select: none; }
+.pick input { width: 16px; height: 16px; accent-color: var(--accent); margin: 0; cursor: pointer; }
+tr.off .to > :not(.keepnote) { opacity: .35; filter: grayscale(1); }
+.keepnote { font-size: 13px; color: var(--accent); margin-bottom: 6px; }
 .why { font-size: 12px; color: var(--muted); opacity: .85; margin-top: 4px; }
 </style>
 </head>
@@ -124,28 +130,33 @@ function look(s, name) {
   if (st.MinimapIcon && nums(st.MinimapIcon)[0] >= 0) { const [, sz, c, sh] = st.MinimapIcon.split(' '); notes.push(`小地圖：${['大', '中', '小'][sz] ?? ''}${CN[c] ?? esc(c)}${SH[sh] ?? esc(sh)}`) }
   return `<div class="ground"><span class="lbl" style="${css}">${esc(name)}</span></div><div class="notes">${notes.join('<i>·</i>')}</div>`
 }
-const row = c => `<tr><td><div class="it"><img src="${esc(c.item.icon)}" alt="" loading="lazy"><div><b>${esc(c.item.name)}</b><small>${esc(c.item.en)}</small></div></div></td>
+const row = c => `<tr class="${c.kept ? 'off' : ''}"><td><div class="it"><img src="${esc(c.item.icon)}" alt="" loading="lazy"><div><b>${esc(c.item.name)}</b><small>${esc(c.item.en)}</small></div></div>
+    <label class="pick"><input type="checkbox" data-en="${esc(c.item.en)}"${c.kept ? '' : ' checked'}> 套用這項調整</label></td>
   <td class="v">${fmt(c.value)}</td>
   <td>${look(c.from, c.item.name)}<div class="why">原本和它同樣式的物品，台服中間價約 ${fmt(c.from.med)}</div></td>
   <td class="arr">→</td>
-  <td>${look(c.to, c.item.name)}<div class="why">改用作者給「${esc(c.to.sample.name)}」的樣式（這類物品台服中間價約 ${fmt(c.to.med)}）</div></td></tr>`
+  <td class="to">${c.kept ? '<div class="keepnote">不更改，維持左邊原本的樣子</div>' : ''}${look(c.to, c.item.name)}<div class="why">改用作者給「${esc(c.to.sample.name)}」的樣式（這類物品台服中間價約 ${fmt(c.to.med)}）</div></td></tr>`
 const sect = (cls, t, d, list) => list.length ? `<h2><span class="${cls}">${t}</span><small>${list.length} 種</small></h2><p class="sub">${d}</p>
   <div class="tw"><table><thead><tr><th>物品</th><th>台服價格</th><th>原本的樣子</th><th></th><th>調整後</th></tr></thead><tbody>${list.sort((a, b) => b.value - a.value).map(row).join('')}</tbody></table></div>` : ''
 
 let current = null // { text, name }
-function run() {
+// 玩家選「不更改」的物品，記在這台電腦的瀏覽器裡，下次產生時沿用
+let keep = []
+try { keep = JSON.parse(localStorage.getItem('filterKeep') || '[]') } catch {}
+function run(scroll = true) {
   if (!current) return
   $('err').hidden = true
   let r
-  try { r = twFilter(D, current.text, current.name) }
+  try { r = twFilter(D, current.text, current.name, { keep }) }
   catch (e) { $('res').hidden = true; $('err').textContent = e.message; $('err').hidden = false; return }
-  const up = r.changes.filter(c => c.up), dn = r.changes.filter(c => !c.up)
+  const up = r.changes.filter(c => c.up), dn = r.changes.filter(c => !c.up), on = c => !c.kept
+  const kept = r.changes.length - r.applied
   $('res').innerHTML = `<p class="file">檔案：${esc(current.name)}</p>
-    <div class="sum"><div><b>${r.stats.items}</b><small>有台服價格的物品</small></div><div><b>${r.stats.items - r.changes.length}</b><small>照原作者，不動</small></div>
-      <div><b style="color:var(--up)">${up.length}</b><small>升級：台服比作者分級貴很多</small></div><div><b style="color:var(--dn)">${dn.length}</b><small>降級：台服比作者分級便宜很多</small></div></div>
-    ${r.changes.length ? `<div class="dl"><button type="button" id="save">⬇ 下載調整後的過濾器</button><span>檔名：<code>${esc(r.name)}</code>。放回「文件 › My Games › Path of Exile」，在遊戲「選項 › 遊戲 › 物品過濾器」選它；原本的檔案不會被覆蓋。</span></div>
-    <p class="note">判斷方式：物品的台服價格，和原本同樣式物品的台服中間價差 5 倍以上才調整；升級一定變得更醒目、降級一定變得較不起眼，降級不會把東西隱藏。價格會變動，想更新就回來重新產生一次。</p>`
-    : '<div class="msg">這份過濾器的分級和台服行情差不多，沒有需要調整的物品。</div>'}
+    <div class="sum"><div><b>${r.stats.items}</b><small>有台服價格的物品</small></div><div><b>${r.stats.items - r.applied}</b><small>照原作者，不動${kept ? `（含你選不更改的 ${kept} 種）` : ''}</small></div>
+      <div><b style="color:var(--up)">${up.filter(on).length}</b><small>升級：台服比作者分級貴很多</small></div><div><b style="color:var(--dn)">${dn.filter(on).length}</b><small>降級：台服比作者分級便宜很多</small></div></div>
+    ${r.applied ? `<div class="dl"><button type="button" id="save">⬇ 下載調整後的過濾器</button><span>檔名：<code>${esc(r.name)}</code>。放回「文件 › My Games › Path of Exile」，在遊戲「選項 › 遊戲 › 物品過濾器」選它；原本的檔案不會被覆蓋。</span></div>
+    <p class="note">判斷方式：物品的台服價格，和原本同樣式物品的台服中間價差 5 倍以上才調整；升級一定變得更醒目、降級一定變得較不起眼，降級不會把東西隱藏。不想改的物品，把那一列的「套用這項調整」取消勾選就好，這個選擇會記住，下次產生也沿用。價格會變動，想更新就回來重新產生一次。</p>`
+    : r.changes.length ? '<div class="msg">所有調整你都選了不更改，下載的檔案會和原本一樣，所以不提供下載。</div>' : '<div class="msg">這份過濾器的分級和台服行情差不多，沒有需要調整的物品。</div>'}
     ${sect('up', '升級', '台服價格比原作者給的分級高很多，改成更醒目的樣式，避免漏撿。', up)}
     ${sect('dn', '降級', '台服價格比原作者給的分級低很多，改成較不起眼的樣式（仍會顯示）。', dn)}`
   $('res').hidden = false
@@ -157,8 +168,15 @@ function run() {
     a.click()
     setTimeout(() => URL.revokeObjectURL(a.href), 1000)
   }
-  $('res').scrollIntoView({ behavior: 'smooth', block: 'start' })
+  if (scroll) $('res').scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
+$('res').addEventListener('change', e => {
+  const en = e.target.dataset?.en
+  if (!en) return
+  keep = e.target.checked ? keep.filter(x => x !== en) : [...new Set([...keep, en])]
+  try { localStorage.setItem('filterKeep', JSON.stringify(keep)) } catch {}
+  run(false)
+})
 async function load(f) {
   if (!f) return
   if (!/\.filter$/i.test(f.name)) { $('err').textContent = '請選副檔名是 .filter 的過濾器檔案。'; $('err').hidden = false; return }
