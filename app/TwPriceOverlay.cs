@@ -27,7 +27,7 @@ static class App
 {
     const string Site = "https://euripideslcw.github.io/tw-price/";
     // 版本號：改了這個檔案要重新編譯並把這裡加 1；網站的 app-version.json 由 GitHub Actions 依此產生
-    const string Version = "1.3.0";
+    const string Version = "1.3.1";
     // 更新簽章的公鑰（RSA-3072）。對應的私鑰只在發布者的電腦上，不在任何網路服務裡：
     // 就算網站或 GitHub 帳號被入侵，沒有私鑰就簽不出能通過驗證的 exe，小程式不會安裝它。
     const string UpdatePublicKey = "<RSAKeyValue><Modulus>tVzDffWFSdWpzM3O1YJwzkjTgA75R3+GsAm97fXJuE59qO0M3ldv6Xk2YP2Fdg7ysMoy0BOgRWyy19rlEOGmZVGjt6cSN0/Kpi28qNN+fNZYATRfk82gB++03d+2hEk3MHxPliaWYUR0JupFPbxpx2wUWso93+CUBaB+R3Aq07aEWY6OWdNGpNE5M4scNSjRf4UspT26GJLRDjTP8UwUYFoVATcxpCEJsUIDS11v/ctlfTPwetzqmzk3PONu1905AeioBolCPHW23HqfPT+OXZ/5ucA1DPKukcxHdBHWpqoXkoW3ClzTqlxpXyeZfbUJp62L8Kz53Pi+WVpGiv9aFI3EnazY2PjzrG7A5wKxNyNnKEh+3Ok8QWG4W9QMm7Kp1SSmJj9MPC+5eVr67ZeS4qpAsoksY0FeMWguBxuOvZeaI3wl3Y7+giA5uDnhL1NIcNz/NCuhN7ljck+9f1RCm7+2+nBL44xPqXznYqFSU9Pt/7WR76FYoMoHBel/mMyh</Modulus><Exponent>AQAB</Exponent></RSAKeyValue>";
@@ -87,6 +87,7 @@ static class App
         if (auto.Checked) SetAutoStart(true); // exe 搬過位置的話，更新成目前的路徑
         auto.Click += delegate { SetAutoStart(!auto.Checked); auto.Checked = AutoStart(); };
         menu.Items.Add(auto);
+        menu.Opening += delegate { auto.Checked = AutoStart(); }; // 小窗裡也能切換，打開選單時同步
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("結束", null, delegate { Tray.Visible = false; Application.Exit(); });
         Tray.ContextMenuStrip = menu;
@@ -209,11 +210,26 @@ static class App
                     if (h.StartsWith("Host:", StringComparison.OrdinalIgnoreCase)) host = h.Substring(5).Trim().ToLowerInvariant();
                 // 只服務本機位址：其他網站即使用 DNS rebinding 指到 127.0.0.1，Host 也不會是這兩個
                 if (host != "127.0.0.1:" + Port && host != "localhost:" + Port) { Send(s, 403, "text/plain; charset=utf-8", Encoding.UTF8.GetBytes("forbidden")); return; }
-                string path = req[1];
+                string path = req[1], query = "";
                 int q = path.IndexOf('?');
-                if (q >= 0) path = path.Substring(0, q);
+                if (q >= 0) { query = path.Substring(q + 1); path = path.Substring(0, q); }
 
-                if (path == "/clip")
+                if (path == "/app")
+                {
+                    // 小窗頁面顯示版本、切換「開機時自動在背景啟動」。
+                    // 會改設定的請求必須帶自訂標頭 X-TwPrice：瀏覽器不准其他網站對這裡送帶自訂標頭的請求
+                    // （要先問過、而這裡不答應），所以惡意網頁無法偷偷替使用者開關自動啟動。
+                    bool hdr = false;
+                    foreach (var h in lines) if (h.StartsWith("X-TwPrice:", StringComparison.OrdinalIgnoreCase)) hdr = true;
+                    if (query == "autostart=1" || query == "autostart=0")
+                    {
+                        if (!hdr) { Send(s, 403, "text/plain; charset=utf-8", Encoding.UTF8.GetBytes("forbidden")); return; }
+                        SetAutoStart(query == "autostart=1");
+                    }
+                    Send(s, 200, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(
+                        "{\"version\":\"" + Version + "\",\"autostart\":" + (AutoStart() ? "true" : "false") + "}"));
+                }
+                else if (path == "/clip")
                 {
                     string json;
                     lock (Lk) json = "{\"seq\":" + Seq + ",\"at\":" + ClipAt + ",\"text\":" + Json(ClipText) + "}";

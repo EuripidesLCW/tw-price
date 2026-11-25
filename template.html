@@ -183,6 +183,10 @@ html.ov main { margin-top: 4px; }
 .clip b { color: var(--text); font-weight: 600; }
 .clip .hint { margin-left: auto; opacity: .75; font-size: 12px; text-align: right; }
 .clip.miss b { color: var(--muted); font-weight: 400; }
+/* 小程式的小窗裡才出現：版本與開機自動啟動開關 */
+.appbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 10px 0; font-size: 12px; color: var(--muted); }
+.appbar label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text); }
+.appbar input { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; cursor: pointer; }
 .tools { width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; font-size: 13px; }
 .tools-t { color: var(--muted); }
 .tools[hidden], .tool[hidden] { display: none; }
@@ -232,6 +236,7 @@ html.ov .tools { display: none; }
   </header>
   <div id="barTop"></div>
   <div class="clip" id="clip"></div>
+  <div class="appbar" id="appbar" hidden><span id="appVer"></span><label><input type="checkbox" id="autoChk"> 開機時自動在背景啟動</label></div>
   <div class="bar" id="bar">
     <div class="search">
       <input id="q" type="search" placeholder="搜尋物品名稱（中文或英文）" autocomplete="off" enterkeyhint="search">
@@ -607,6 +612,14 @@ const clipHint = () => { $('clip').innerHTML = LIVE
   ? '<b>在遊戲裡按 Ctrl+C 複製物品</b><span class="hint">就會跳到那一個</span>'
   : '<b>在遊戲裡 Ctrl+C 複製物品</b><span class="hint">切回這一頁按 Ctrl+V<br>直接跳到它的價格</span>' }
 clipHint()
+
+// 小程式的版本與「開機時自動在背景啟動」：舊版小程式沒有 /app，就維持隱藏
+if (LIVE) {
+  const showApp = a => { $('appVer').textContent = `小程式 v${a.version}`; $('autoChk').checked = a.autostart; $('appbar').hidden = false }
+  fetch('/app', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(a => a && showApp(a)).catch(() => {})
+  $('autoChk').onchange = () => fetch('/app?autostart=' + ($('autoChk').checked ? 1 : 0), { cache: 'no-store', headers: { 'X-TwPrice': '1' } })
+    .then(r => r.json()).then(showApp).catch(() => {})
+}
 
 // 入口 1：貼上。認得出物品就接管（連貼進搜尋框也一樣，省得再按 Enter）；
 // 認不出來就完全不插手，讓一般的貼上照常運作。
