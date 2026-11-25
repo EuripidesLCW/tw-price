@@ -92,6 +92,7 @@
     for (const it of D.items) {
       const v = it.noTrade ? 0 : value(it, D.divinePrice)
       if (!(v > 0) || !it.en || !it.cls || it.en.includes('"')) continue
+      if (it.cls === 'Divination Cards') continue // 命運卡不納入調整範圍，照原作者
       const r = simulate(blocks, { en: it.en, cls: it.cls, stack: 1, area })
       items.push({ it, v, ...r, key: it.cls + '#' + lookKey(r) })
     }
