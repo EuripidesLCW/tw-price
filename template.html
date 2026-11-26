@@ -152,21 +152,33 @@ h3::after { content: ""; flex: 1; border-top: 1px solid var(--line); order: 1; }
 .tag { font-size: 11px; line-height: 1; padding: 2px 5px; border-radius: 4px; border: 1px solid var(--stale); color: var(--muted); margin-left: 6px; vertical-align: 2px; font-weight: 400; }
 .more .warn { color: var(--accent); }
 .card .more { position: absolute; left: -1px; right: -1px; top: 100%; background: var(--panel); border: 1px solid var(--accent); border-top: 1px dashed var(--line); border-radius: 0 0 10px 10px; box-shadow: 0 10px 24px rgb(0 0 0 / .35); padding: 6px 10px 10px; font-size: 12px; color: var(--muted); line-height: 1.6; }
-.card .more b { color: var(--text); font-weight: 500; }
-.card .more > div + div { margin-top: 8px; }
-.card .more dl { display: grid; grid-template-columns: auto 1fr; gap: 1px 10px; margin: 2px 0 0; }
-.card .more dt { color: var(--muted); white-space: nowrap; }
-.card .more dd { margin: 0; color: var(--text); }
+.card .more { display: none; } .pip .card .more { display: block; }
+.card[open] { border-radius: 10px; }
+/* 詳細資料彈窗：混沌石價、神聖石價左右並排，一個畫面看完；點任意處或 Esc 關閉 */
+.pop { border: 1px solid var(--accent); border-radius: 12px; background: var(--panel); color: var(--muted); padding: 12px 16px 10px; width: min(620px, calc(100vw - 16px)); max-height: calc(100dvh - 16px); overflow: auto; font-size: 13px; line-height: 1.6; font-variant-numeric: tabular-nums; cursor: pointer; box-shadow: 0 16px 40px rgb(0 0 0 / .5); }
+.pop::backdrop { background: rgb(0 0 0 / .55); }
+.pop .ph { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.pop .ph img { width: 40px; height: 40px; object-fit: contain; flex: none; }
+.pop .pn { color: var(--text); font-size: 16px; font-weight: 600; }
+.pop .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 18px; }
+.pop .cols > div { margin: 0; min-width: 0; }
+.pop .pclose { margin-top: 8px; text-align: center; font-size: 11px; color: var(--stale); }
+@media (max-width: 600px) { .pop { padding: 10px 10px 8px; font-size: 12px; } .pop .cols { gap: 10px; } .pop .more dl { gap: 1px 6px; } .pop .more dd .chg { display: block; } }
+.more b { color: var(--text); font-weight: 500; }
+.more > div + div { margin-top: 8px; }
+.more dl { display: grid; grid-template-columns: auto 1fr; gap: 1px 10px; margin: 2px 0 0; }
+.more dt { color: var(--muted); white-space: nowrap; }
+.more dd { margin: 0; color: var(--text); }
 /* 漲跌（▲紅漲 ▼綠跌）與 7 天走勢圖 */
 .chg { font-style: normal; font-size: 11px; font-weight: 500; white-space: nowrap; }
 .chg.up { color: var(--up); } .chg.dn { color: var(--dn); } .chg.flat, .chg.na { color: var(--muted); font-weight: 400; }
-.card .more dd .chg { display: inline-block; margin-right: 8px; }
+.more dd .chg { display: inline-block; margin-right: 8px; }
 .spark { grid-column: 1 / -1; margin: 4px 0 0; }
 .spark svg { display: block; width: 100%; height: 36px; overflow: visible; color: var(--accent); }
 .spark path { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .spark .sk { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
 .nw { white-space: nowrap; }
-.card .more .none b { font-weight: 500; }
+.more .none b { font-weight: 500; }
 .ico { width: 18px; height: 18px; }
 .empty { color: var(--muted); padding: 40px 0; text-align: center; }
 @media (max-width: 600px) { .card .px { font-size: 14px; } }
@@ -267,6 +279,7 @@ html.ov .tools { display: none; }
   <main id="list"></main>
 </div>
 <div class="toast" id="toast"></div>
+<dialog class="pop" id="pop"></dialog>
 <!-- 每次開頁都帶時間參數，避免瀏覽器或 GitHub 快取給舊資料 -->
 <script>document.write('<script src="data.js?t=' + Date.now() + '"><\/script>')</script>
 <script>
@@ -385,7 +398,17 @@ $('only').onclick = e => {
   mode = b.dataset.mode; render(); picked()
   try { localStorage.setItem('mode', mode) } catch {}
 }
-document.addEventListener('toggle', e => { if (e.target.open) for (const d of document.querySelectorAll('details.card[open]')) if (d !== e.target) d.open = false }, true)
+document.addEventListener('toggle', e => {
+  const d = e.target
+  if (!d.open || !d.matches('details.card')) return
+  for (const o of document.querySelectorAll('details.card[open]')) if (o !== d) o.open = false
+  const [en, ...parts] = d.querySelector('.more').children, p = $('pop')
+  p.innerHTML = `<div class="ph">${d.querySelector('summary > img')?.outerHTML ?? ''}<div><div class="pn">${d.querySelector('.nm').innerHTML}</div><div>${en.innerHTML}</div></div></div>`
+    + `<div class="more cols">${parts.map(x => x.outerHTML).join('')}</div><div class="pclose">點任意處關閉</div>`
+  if (!p.open) p.showModal()
+}, true)
+$('pop').onclick = () => $('pop').close()
+$('pop').onclose = () => { for (const o of document.querySelectorAll('details.card[open]')) o.open = false }
 document.addEventListener('click', e => { if (!e.target.closest('details.card')) for (const d of document.querySelectorAll('details.card[open]')) d.open = false })
 
 const unit = { get chaos() { return ['混沌石', chaos] }, get divine() { return ['神聖石', divine] } }
