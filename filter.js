@@ -6,8 +6,12 @@
 //   4. 物品價格是所屬那組中間值的 5 倍以上或 1/5 以下 → 換成同類物品中、中間值最接近它價格的那組樣式
 // 調整只寫在檔案最上面，原內容一字不改。網頁與 node 測試共用：twFilter(D, 原檔文字, 原檔名) → { text, name, changes, stats }
 (function (root) {
-  const RATIO = 5        // 差幾倍以上才調整
-  const MIN_VALUE = 5    // 物品價格和原組中間價都不到 5 混沌石就不調整
+  const RATIO = 5        // 預設：差幾倍以上才調整（玩家可選）
+  // 價位分級（混沌石）：玩家勾選哪些價位的物品可以調整；預設不調 1C 以下的便宜貨
+  const tiers = dp => [['lt1', '1C 以下', 0, 1], ['c1', '1–10C', 1, 10], ['c10', '10–100C', 10, 100], ['c100', '100C–1D', 100, dp],
+    ['d1', '1–10D', dp, 10 * dp], ['d10', '10–100D', 10 * dp, 100 * dp], ['d100', '100D 以上', 100 * dp, Infinity]].map(([key, label, lo, hi]) => ({ key, label, lo, hi }))
+  const tierOf = (v, dp) => tiers(dp).find(t => v < t.hi).key
+  const DEFAULT_TIERS = ['c1', 'c10', 'c100', 'd1', 'd10', 'd100']
   const FIXED = new Set(['Chaos Orb', 'Divine Orb', 'Chromatic Orb', 'Exalted Orb', 'Orb of Alchemy', 'Orb of Alteration', 'Stacked Deck']) // 基本交易通貨：作者怎麼顯示就怎麼顯示，一律不調整
   const MIN_GROUP = 3   // 一種樣式至少要有幾個物品，才拿來推算價位、借給別的物品用（少於這個數，多半是作者給特定物品的專屬樣式，不動）
   const STYLE = new Set(['SetTextColor', 'SetBackgroundColor', 'SetBorderColor', 'SetFontSize', 'PlayAlertSound', 'PlayAlertSoundPositional', 'CustomAlertSound', 'CustomAlertSoundOptional',
@@ -84,6 +88,7 @@
     // 每次上傳都是新的開始：上傳的檔案（就算是之前產生過的）原樣當作判斷基準
     const body = bom ? original.slice(1) : original
     const keep = new Set(opt.keep ?? []) // 玩家勾選「不更改」的物品（英文名）
+    const ratio = opt.ratio ?? RATIO, allow = new Set(opt.tiers ?? DEFAULT_TIERS)
     const blocks = parse(body)
     if (blocks.filter(b => b.conds.length).length < 20) throw new Error('這個檔案看起來不是過濾器（讀不到規則）')
 
@@ -113,9 +118,9 @@
       const g = groups.get(x.key)
       if (g.items.length < MIN_GROUP) return null // 作者的專屬樣式，不動
       if (FIXED.has(x.it.en)) return null // 基本交易通貨不調整
-      if (Math.max(x.v, g.med) < MIN_VALUE) return null // 都是便宜貨（例：0.1 和 1 混沌石），差幾倍也沒有撿不撿的差別
+      if (!allow.has(tierOf(x.v, D.divinePrice))) return null // 玩家沒勾的價位不調整
       const r = x.v / g.med
-      if (r < RATIO && r > 1 / RATIO) return null
+      if (r < ratio && r > 1 / ratio) return null
       const up = r > 1, now = loud(x.show, x.style)
       let best = null, bestStyle = null
       for (const t of usable) {
@@ -168,7 +173,7 @@
     const out = [
       '# ==================================================',
       `# 台服價格調整（${D.league}，依 ${hour} 為止的台服通貨交換成交價）`,
-      `# 只調整台服價格和原作者分級差 ${RATIO} 倍以上的 ${applied.length} 種物品，改用原作者自己同價位物品的樣式；`,
+      `# 只調整台服價格和原作者分級差 ${ratio} 倍以上的 ${applied.length} 種物品，改用原作者自己同價位物品的樣式；`,
       '# 其他物品、以及以下原過濾器內容都沒有修改。價格會變，想更新請到網站重新產生。',
       '# ==================================================',
       '',
@@ -186,7 +191,7 @@
     return {
       text: (bom ? '﻿' : '') + out.join(nl) + nl + body, name,
       applied: applied.length,
-      changes: changes.map(c => ({ item: c.x.it, value: c.x.v, up: c.up, kept: c.kept, from: { show: c.x.orig.show, style: c.x.orig.style, med: c.x.origMed },
+      changes: changes.map(c => ({ item: c.x.it, value: c.x.v, tier: tierOf(c.x.v, D.divinePrice), up: c.up, kept: c.kept, from: { show: c.x.orig.show, style: c.x.orig.style, med: c.x.origMed },
         to: { show: true, style: c.style, med: c.to.med, sample: c.to.sample.it } })),
       stats: { rules: blocks.length, items: items.length, groups: usable.length, unmatched: items.filter(x => !x.from).length },
     }
@@ -208,5 +213,7 @@
   }
   const fmtC = v => v >= 10 ? Math.round(v) + ' 混沌石' : +v.toPrecision(2) + ' 混沌石'
 
+  twFilter.tiers = tiers
+  twFilter.DEFAULT_TIERS = DEFAULT_TIERS
   root.twFilter = twFilter
 })(typeof window !== 'undefined' ? window : globalThis)

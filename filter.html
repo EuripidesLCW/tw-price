@@ -38,6 +38,16 @@ h1 { font-size: 26px; margin: 8px 0 6px; }
 .drop span { color: var(--muted); font-size: 13px; }
 .drop input { display: none; }
 .opts { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 12px 0 0; color: var(--muted); font-size: 14px; }
+.set { margin: 14px 0 0; padding: 12px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; display: grid; gap: 10px; }
+.set .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.set .k { color: var(--muted); font-size: 14px; min-width: 5.5em; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; cursor: pointer; user-select: none; color: var(--muted); background: var(--bg); }
+.chip input { position: absolute; opacity: 0; pointer-events: none; }
+.chip:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+.chip:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
+.chip small { font-size: 12px; color: var(--muted); }
+.chip small:empty { display: none; }
+.set .hint { color: var(--muted); font-size: 12.5px; }
 .msg { margin: 16px 0 0; padding: 12px 16px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); }
 .msg.err { border-color: var(--warn); color: var(--warn); }
 .res { margin-top: 26px; }
@@ -102,6 +112,11 @@ tr.off .to > :not(.keepnote) { opacity: .35; filter: grayscale(1); }
   <div class="opts">
     <span id="dataTime"></span>
   </div>
+  <div class="set">
+    <div class="row"><span class="k">價差達到</span><span id="ratios"></span><span class="hint">和作者同樣式物品的台服價差幾倍才調整，越小改越多</span></div>
+    <div class="row"><span class="k">調整的價位</span><span id="tiers"></span></div>
+    <div class="hint" id="tierHint">上傳檔案後，每個價位會顯示可調整幾項</div>
+  </div>
   <div class="msg err" id="err" hidden></div>
 
   <section class="res" id="res" hidden></section>
@@ -154,6 +169,13 @@ const row = c => `<tr class="${c.kept ? 'off' : ''}"><td><div class="it"><img sr
 const sect = (cls, t, d, list) => list.length ? `<h2><span class="${cls}">${t}</span><small>${list.length} 種</small></h2><p class="sub">${d}</p>
   <div class="tw"><table><thead><tr><th>物品</th><th>台服價格</th><th>原本的樣子</th><th></th><th>調整後</th></tr></thead><tbody>${list.sort((a, b) => b.value - a.value).map(row).join('')}</tbody></table></div>` : ''
 
+// 調整條件：只在這個頁面有效，不記住
+let ratio = 5, tiers = new Set(twFilter.DEFAULT_TIERS)
+$('ratios').innerHTML = [2, 3, 5, 10].map(n => `<label class="chip"><input type="radio" name="ratio" value="${n}"${n === ratio ? ' checked' : ''}>${n} 倍</label>`).join(' ')
+const drawTiers = (cnt = {}) => { $('tiers').innerHTML = twFilter.tiers(D.divinePrice).map(t => `<label class="chip"><input type="checkbox" data-tier="${t.key}"${tiers.has(t.key) ? ' checked' : ''}>${t.label}<small>${cnt[t.key] ?? ''}</small></label>`).join(' ') }
+drawTiers()
+$('ratios').onchange = e => { ratio = +e.target.value; run(false) }
+$('tiers').onchange = e => { const k = e.target.dataset.tier; if (e.target.checked) tiers.add(k); else tiers.delete(k); run(false) }
 let current = null // { text, name }
 // 這次上傳裡，玩家取消勾選「套用這項調整」的物品；每次上傳都是新的開始，換檔案就清空
 let keep = []
@@ -161,7 +183,14 @@ function run(scroll = true) {
   if (!current) return
   $('err').hidden = true
   let r
-  try { r = twFilter(D, current.text, current.name, { keep }) }
+  try {
+    r = twFilter(D, current.text, current.name, { keep, ratio, tiers: [...tiers] })
+    // 每個價位可調整幾項：全部價位都開來算（只用來顯示在價位按鈕上）
+    const all = twFilter(D, current.text, current.name, { ratio, tiers: twFilter.tiers(1).map(t => t.key) }), cnt = {}
+    for (const c of all.changes) cnt[c.tier] = (cnt[c.tier] ?? 0) + 1
+    for (const t of twFilter.tiers(1)) cnt[t.key] = (cnt[t.key] ?? 0) + ' 項'
+    drawTiers(cnt); $('tierHint').textContent = '數字＝這個價位可調整幾項（勾起來才會調整）'
+  }
   catch (e) { $('res').hidden = true; $('err').textContent = e.message; $('err').hidden = false; return }
   const up = r.changes.filter(c => c.up), dn = r.changes.filter(c => !c.up), on = c => !c.kept
   const kept = r.changes.length - r.applied
@@ -169,7 +198,7 @@ function run(scroll = true) {
     <div class="sum"><div><b>${r.stats.items}</b><small>判斷的物品</small></div><div><b>${r.stats.items - r.applied}</b><small>照原樣${kept ? `（含不更改 ${kept}）` : ''}</small></div>
       <div><b style="color:var(--up)">${up.filter(on).length}</b><small>升級</small></div><div><b style="color:var(--dn)">${dn.filter(on).length}</b><small>降級</small></div></div>
     ${r.applied ? `<div class="dl"><button type="button" id="save">⬇ 下載調整後的過濾器</button><span>${r.name === current.name ? (PICK && current.handle ? '存檔視窗會開在原檔的資料夾，直接存會取代原檔（要留原檔請先備份）' : '檔名和上傳的相同，放回資料夾會取代原檔（要留原檔請先備份）') : `訂閱的過濾器：存成 <code>${esc(r.name)}</code>，放到 Path of Exile 資料夾（不是 OnlineFilters）`}<br>遊戲裡：選項 › 遊戲 › 物品過濾器</span></div>
-    <ul class="note"><li>和同樣式物品的台服價差 5 倍以上才調整</li><li>升級更醒目；降級較不起眼，但不會隱藏</li><li>不調整：混沌石、神聖石、幻色石、崇高石、點金石、改造石、豐裕牌組、命運卡</li><li>不想改的，取消那一列的「套用」（只限這次下載）</li></ul>`
+    <ul class="note"><li>和同樣式物品的台服價差 ${ratio} 倍以上才調整，只調勾選的價位</li><li>升級更醒目；降級較不起眼，但不會隱藏</li><li>不調整：混沌石、神聖石、幻色石、崇高石、點金石、改造石、豐裕牌組、命運卡</li><li>不想改的，取消那一列的「套用」（只限這次下載）</li></ul>`
     : r.changes.length ? '<div class="msg">全部選了不更改，不需要下載。</div>' : '<div class="msg">分級和台服行情相符，不需要調整。</div>'}
     ${sect('up', '升級', '台服比作者分級貴很多，改得更醒目', up)}
     ${sect('dn', '降級', '台服比作者分級便宜很多，改得較不起眼', dn)}`
