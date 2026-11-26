@@ -168,14 +168,20 @@ function run(scroll = true) {
   $('res').innerHTML = `<p class="file">檔案：${esc(current.name)}</p>
     <div class="sum"><div><b>${r.stats.items}</b><small>判斷的物品</small></div><div><b>${r.stats.items - r.applied}</b><small>照原樣${kept ? `（含不更改 ${kept}）` : ''}</small></div>
       <div><b style="color:var(--up)">${up.filter(on).length}</b><small>升級</small></div><div><b style="color:var(--dn)">${dn.filter(on).length}</b><small>降級</small></div></div>
-    ${r.applied ? `<div class="dl"><button type="button" id="save">⬇ 下載調整後的過濾器</button><span>${r.name === current.name ? '檔名和上傳的相同，放回資料夾會取代原檔（要留原檔請先備份）' : `訂閱的過濾器：存成 <code>${esc(r.name)}</code>，放到 Path of Exile 資料夾（不是 OnlineFilters）`}<br>遊戲裡：選項 › 遊戲 › 物品過濾器</span></div>
+    ${r.applied ? `<div class="dl"><button type="button" id="save">⬇ 下載調整後的過濾器</button><span>${r.name === current.name ? (PICK && current.handle ? '存檔視窗會開在原檔的資料夾，直接存會取代原檔（要留原檔請先備份）' : '檔名和上傳的相同，放回資料夾會取代原檔（要留原檔請先備份）') : `訂閱的過濾器：存成 <code>${esc(r.name)}</code>，放到 Path of Exile 資料夾（不是 OnlineFilters）`}<br>遊戲裡：選項 › 遊戲 › 物品過濾器</span></div>
     <ul class="note"><li>和同樣式物品的台服價差 5 倍以上才調整</li><li>升級更醒目；降級較不起眼，但不會隱藏</li><li>不調整：混沌石、神聖石、幻色石、崇高石、點金石、改造石、豐裕牌組、命運卡</li><li>不想改的，取消那一列的「套用」（只限這次下載）</li></ul>`
     : r.changes.length ? '<div class="msg">全部選了不更改，不需要下載。</div>' : '<div class="msg">分級和台服行情相符，不需要調整。</div>'}
     ${sect('up', '升級', '台服比作者分級貴很多，改得更醒目', up)}
     ${sect('dn', '降級', '台服比作者分級便宜很多，改得較不起眼', dn)}`
   $('res').hidden = false
   const save = $('save')
-  if (save) save.onclick = () => {
+  if (save) save.onclick = async () => {
+    if (PICK) try {
+      const h = await showSaveFilePicker({ suggestedName: r.name, startIn: current.handle ?? 'documents', types: [{ description: '物品過濾器', accept: { 'text/plain': ['.filter'] } }] })
+      const w = await h.createWritable(); await w.write(r.text); await w.close()
+      save.textContent = '✓ 已存檔'; setTimeout(() => { save.textContent = '⬇ 下載調整後的過濾器' }, 3000)
+      return
+    } catch (e) { if (e.name === 'AbortError') return } // 按取消就不存；其他錯誤改用一般下載
     const a = document.createElement('a')
     a.href = URL.createObjectURL(new Blob([r.text], { type: 'text/plain;charset=utf-8' }))
     a.download = r.name
@@ -190,9 +196,9 @@ $('res').addEventListener('change', e => {
   keep = e.target.checked ? keep.filter(x => x !== en) : [...new Set([...keep, en])]
   run(false)
 })
-async function load(f) {
+async function load(f, handle) {
   if (!f) return
-  current = { text: await f.text(), name: f.name }
+  current = { text: await f.text(), name: f.name, handle }
   keep = []
   await refreshData()
   run()
@@ -205,7 +211,17 @@ $('file').onchange = e => load(e.target.files[0])
 const drop = $('drop')
 drop.ondragover = e => { e.preventDefault(); drop.classList.add('over') }
 drop.ondragleave = () => drop.classList.remove('over')
-drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); load(e.dataTransfer.files[0]) }
+drop.ondrop = async e => {
+  e.preventDefault(); drop.classList.remove('over')
+  const f = e.dataTransfer.files[0], hp = e.dataTransfer.items?.[0]?.getAsFileSystemHandle?.() // 要在事件當下取，await 之後就拿不到
+  load(f, await hp?.catch(() => null) ?? undefined)
+}
+// Chrome／Edge：用系統的開檔視窗，才拿得到檔案位置
+const PICK = 'showSaveFilePicker' in window && 'showOpenFilePicker' in window
+if (PICK) drop.onclick = async e => {
+  e.preventDefault()
+  try { const [h] = await showOpenFilePicker(); load(await h.getFile(), h) } catch {}
+}
 </script>
 </body>
 </html>
