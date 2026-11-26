@@ -111,11 +111,22 @@ tr.off .to > :not(.keepnote) { opacity: .35; filter: grayscale(1); }
 <script src="filter.js"></script>
 <script>
 const $ = id => document.getElementById(id)
-const D = window.TW_DATA
+let D = window.TW_DATA
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
 const hh = t => String(new Date(t).getHours()).padStart(2, '0') + ':00'
 const md = t => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()}` }
-$('dataTime').textContent = `價格：${md(D.updated - 3600e3)} ${hh(D.updated - 3600e3)}–${hh(D.updated)} 的成交，每小時更新`
+const showTime = () => { $('dataTime').textContent = `價格：${md(D.updated - 3600e3)} ${hh(D.updated - 3600e3)}–${hh(D.updated)} 的成交，每小時更新` }
+showTime()
+// 頁面開著很久的話，價格可能已經過了好幾個時段：每次上傳前先抓一次最新的價格資料
+function refreshData() {
+  return new Promise(done => {
+    const s = document.createElement('script')
+    s.src = 'data.js?t=' + Date.now()
+    s.onload = () => { if (window.TW_DATA?.items) D = window.TW_DATA; showTime(); s.remove(); done() }
+    s.onerror = () => { s.remove(); done() } // 抓不到就用目前這份
+    document.head.appendChild(s)
+  })
+}
 
 const fmt = v => v >= D.divinePrice ? (v / D.divinePrice).toFixed(v >= 10 * D.divinePrice ? 0 : 1) + ' 神聖石' : v >= 10 ? Math.round(v) + ' 混沌石' : +v.toPrecision(2) + ' 混沌石'
 const CN = { Red: '紅', Green: '綠', Blue: '藍', Brown: '棕', White: '白', Yellow: '黃', Cyan: '青', Grey: '灰', Orange: '橘', Pink: '粉紅', Purple: '紫' }
@@ -183,6 +194,7 @@ async function load(f) {
   if (!f) return
   current = { text: await f.text(), name: f.name }
   keep = []
+  await refreshData()
   run()
 }
 // 右下角「回到頂端」：往下捲超過一個畫面才出現
