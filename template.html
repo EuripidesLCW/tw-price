@@ -160,12 +160,6 @@ h3::after { content: ""; flex: 1; border-top: 1px solid var(--line); order: 1; }
 .more .warn { color: var(--accent); }
 .card .more { position: absolute; left: -1px; right: -1px; top: 100%; background: var(--panel); border: 1px solid var(--accent); border-top: 1px dashed var(--line); border-radius: 0 0 10px 10px; box-shadow: 0 10px 24px rgb(0 0 0 / .35); padding: 6px 10px 10px; font-size: 12px; color: var(--muted); line-height: 1.6; }
 .card .more { display: none; }
-/* 置頂小窗：詳細資料在卡片下方展開，混沌石價、神聖石價左右並排（只有一種價格就撐滿） */
-.pip .card .more { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; }
-.pip .card .more > div { margin: 0; min-width: 0; }
-.pip .card .more > div:first-child, .pip .card .more > div:last-child:nth-child(2) { grid-column: 1 / -1; }
-.pip .card .more dl { gap: 1px 6px; }
-.pip .card .more dd .chg { display: block; }
 .card[open] { border-radius: 10px; }
 /* 詳細資料彈窗：混沌石價、神聖石價左右並排，一個畫面看完；點任意處或 Esc 關閉 */
 .pop { border: 1px solid var(--accent); border-radius: 12px; background: var(--panel); color: var(--muted); padding: 12px 16px 10px; width: min(620px, calc(100vw - 16px)); max-height: calc(100dvh - 16px); overflow: auto; font-size: 13px; line-height: 1.6; font-variant-numeric: tabular-nums; cursor: pointer; box-shadow: 0 16px 40px rgb(0 0 0 / .5); }
@@ -242,9 +236,6 @@ html.ov .tools { display: none; }
 /* 置頂小窗（Document Picture-in-Picture）裡的版面 */
 .pip { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
 .pip .grid { grid-template-columns: 1fr; }
-.pip .card .more { position: static; border: 0; border-top: 1px dashed var(--line); box-shadow: none; border-radius: 0 0 10px 10px; }
-.pip .card[open] { border-radius: 10px; }
-.pip .card summary { height: auto; } /* 網格裡用來讓同排等高的「撐滿」，在小窗裡會把詳細資料擠出去 */
 .pip input { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); font: inherit; }
 /* 剛從剪貼簿跳過來的那張卡閃一下，不然在清單裡不知道看哪 */
 @keyframes clipflash { from { box-shadow: 0 0 0 2px var(--accent); } to { box-shadow: 0 0 0 2px transparent; } }
@@ -434,17 +425,22 @@ $('only').onclick = e => {
   mode = b.dataset.mode; render(); picked()
   try { localStorage.setItem('mode', mode) } catch {}
 }
-document.addEventListener('toggle', e => {
+// 詳細資料彈窗：主頁、小程式、置頂小窗共用（doc＝那個視窗的 document）
+function popFor(doc) {
+  const p = doc.getElementById('pop')
+  doc.addEventListener('toggle', e => {
   const d = e.target
   if (!d.open || !d.matches('details.card')) return
-  for (const o of document.querySelectorAll('details.card[open]')) if (o !== d) o.open = false
-  const [en, ...parts] = d.querySelector('.more').children, p = $('pop')
+  for (const o of doc.querySelectorAll('details.card[open]')) if (o !== d) o.open = false
+  const [en, ...parts] = d.querySelector('.more').children
   p.innerHTML = `<div class="ph">${d.querySelector('summary > img')?.outerHTML ?? ''}<div><div class="pn">${d.querySelector('.nm').innerHTML}</div><div>${en.innerHTML}</div></div></div>`
     + `<div class="more cols">${parts.map(x => x.outerHTML).join('')}</div><div class="pclose">點任意處關閉</div>`
   if (!p.open) p.showModal()
-}, true)
-$('pop').onclick = () => $('pop').close()
-$('pop').onclose = () => { for (const o of document.querySelectorAll('details.card[open]')) o.open = false }
+  }, true)
+  p.onclick = () => p.close()
+  p.onclose = () => { for (const o of doc.querySelectorAll('details.card[open]')) o.open = false }
+}
+popFor(document)
 document.addEventListener('click', e => { if (!e.target.closest('details.card')) for (const d of document.querySelectorAll('details.card[open]')) d.open = false })
 
 const unit = { get chaos() { return ['混沌石', chaos] }, get divine() { return ['神聖石', divine] } }
@@ -716,13 +712,13 @@ let pipWin = null, pipItemId = null
 function pipRefresh() {
   if (!pipWin || pipWin.closed || !pipItemId) return
   const it = D.items.find(i => i.id === pipItemId)
-  if (it) pipShow(it)
+  if (it) pipShow(it, pipWin.document.getElementById('pop').open) // 彈窗開著才重新打開，更新價格時不會自己跳出來
 }
-function pipShow(it) {
+function pipShow(it, open = true) {
   const d = pipWin.document
   d.getElementById('pclip').innerHTML = `<b>${esc(it.name)}</b><span class="hint">${esc(it.en ?? '')}<br>資料時間 ${span(0)}</span>`
   d.getElementById('pcard').innerHTML = `<div class="grid">${card(it)}</div>`
-  const el = d.querySelector('details.card'); if (el) el.open = true
+  const el = d.querySelector('details.card'); if (el && open) el.open = true
 }
 async function openPip() {
   if (pipWin && !pipWin.closed) { pipWin.focus(); return }
@@ -734,7 +730,8 @@ async function openPip() {
   d.body.innerHTML = `<div class="pip">
     <div class="clip" id="pclip"><b>在遊戲裡 Ctrl+C 複製物品</b><span class="hint">點這個小窗按 Ctrl+V<br>就會顯示價格</span></div>
     <input id="pq" type="search" placeholder="或輸入物品名稱" autocomplete="off">
-    <div id="pcard"></div></div>`
+    <div id="pcard"></div></div><dialog class="pop" id="pop"></dialog>`
+  popFor(d)
   const find = text => {
     const it = itemFromText(text)
     if (it) { pipItemId = it.id; pipShow(it); return true }
@@ -748,7 +745,7 @@ async function openPip() {
   d.getElementById('pq').addEventListener('input', e => {
     const q = e.target.value.trim().toLowerCase(); if (!q) return
     const it = D.items.find(i => i.name.toLowerCase().includes(q) || i.en?.toLowerCase().includes(q))
-    if (it) { pipItemId = it.id; pipShow(it) }
+    if (it) { pipItemId = it.id; pipShow(it, false) }
   })
   pipWin.addEventListener('pagehide', () => { pipWin = null })
 }
