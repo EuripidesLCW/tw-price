@@ -237,8 +237,8 @@ html.ov main { margin-top: 4px; }
 .tools-help p { margin: 6px 0; line-height: 1.6; }
 .tools-help kbd { font: inherit; font-size: 12px; padding: 0 5px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); color: var(--text); }
 .tools-help a { color: var(--accent); }
-@media (max-width: 600px) { .tools { display: none; } }
-html.ov .tools { display: none; }
+@media (max-width: 600px) { #dlBtn, .tools-help { display: none; } }
+html.ov #dlBtn, html.ov .tools-help { display: none; }
 /* 置頂小窗（Document Picture-in-Picture）裡的版面 */
 .pip { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
 .pip .grid { grid-template-columns: 1fr; }
@@ -772,7 +772,11 @@ if ('documentPictureInPicture' in window && !LIVE && !OVERLAY) {
   $('pipBtn').hidden = false
   $('pipBtn').onclick = () => openPip().catch(err => alert('無法開啟置頂小窗：' + err.message))
 }
-if (LIVE) $('tools').hidden = true // 已經在用小程式了
+if (LIVE) {
+  // 已經在用小程式了：不顯示下載與說明。小程式的本機伺服器只有價格頁，過濾器連到公開網站、開在新視窗（不蓋掉價格小窗）
+  $('dlBtn').hidden = true; document.querySelector('.tools-help').hidden = true
+  const f = document.querySelector('a[href="filter.html"]'); f.href = 'https://euripideslcw.github.io/tw-price/filter.html'; f.target = '_blank'; f.rel = 'noopener'
+}
 else fetch('app-version.json', { cache: 'no-store' }).then(r => r.json()).then(v => {
   $('dlBtn').querySelector('small').textContent = `v${v.version} · 免安裝 · 會自動更新`
 }).catch(() => {})
