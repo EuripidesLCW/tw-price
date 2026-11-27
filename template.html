@@ -89,21 +89,23 @@ h1 small { font-size: 15px; color: var(--muted); font-weight: 400; margin-left: 
 .chip img { width: 24px; height: 24px; object-fit: contain; }
 .chip:hover { border-color: var(--accent); background: var(--accent-soft); }
 .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #1a1408; font-weight: 700; }
+/* 篩選列（電腦、手機都一樣）：完整篩選列跟著頁面捲走，整個捲出畫面後，才從上方滑下精簡列（搜尋框＋篩選按鈕），
+   浮在清單上不佔位置；點篩選按鈕往下展開、蓋在清單上，不會推擠清單 */
+.bar.compact { flex-wrap: nowrap; padding: 8px 0; box-shadow: 0 6px 12px rgb(0 0 0 / .25); }
+.bar.compact .search { flex: 1 1 0; }
+.bar.compact .ftoggle { display: flex; align-items: center; gap: 4px; flex: none; max-width: 46%; padding: 0 10px; border: 1px solid var(--accent); border-radius: 8px; background: var(--accent-soft); color: var(--accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar.compact .seg, .bar.compact .chips, .bar.compact .sorter { display: none; }
+.bar.compact.open { flex-wrap: wrap; max-height: 85vh; overflow-y: auto; }
+html:not(.ov) .bar { position: relative; }
+html:not(.ov) .bar.float { position: fixed; left: 0; right: 0; top: 0; padding: 8px max(16px, calc((100% - 1208px) / 2)); max-height: 64px; overflow: hidden; animation: barIn .25s ease-out; transition: max-height .3s ease-out; }
+html:not(.ov) .bar.float.open { max-height: 85vh; overflow-y: auto; }
+.bar.float.open .seg, .bar.float.open .sorter, .bar.float.open .chips { animation: barItems .3s ease-out; }
+.bar.compact.open .seg, .bar.compact.open .sorter { display: flex; }
+.bar.compact.open .chips { display: grid; }
 @media (max-width: 600px) {
   .bar input { font-size: 16px; }
-  .bar.compact { flex-wrap: nowrap; padding: 8px 0; box-shadow: 0 6px 12px rgb(0 0 0 / .25); }
-  .bar.compact .search { flex: 1 1 0; }
-  .bar.compact .ftoggle { display: flex; align-items: center; gap: 4px; flex: none; max-width: 46%; padding: 0 10px; border: 1px solid var(--accent); border-radius: 8px; background: var(--accent-soft); color: var(--accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .bar.compact .seg, .bar.compact .chips, .bar.compact .sorter { display: none; }
   .sorter { width: 100%; justify-content: space-between; }
   .sorter select { font-size: 16px; }
-  .bar.compact.open { flex-wrap: wrap; max-height: 85vh; overflow-y: auto; }
-  html:not(.ov) .bar { position: relative; }
-  html:not(.ov) .bar.float { position: fixed; left: 0; right: 0; top: 0; padding: 8px 16px; max-height: 64px; overflow: hidden; animation: barIn .25s ease-out; transition: max-height .3s ease-out; }
-  html:not(.ov) .bar.float.open { max-height: 85vh; overflow-y: auto; }
-  .bar.float.open .seg, .bar.float.open .sorter, .bar.float.open .chips { animation: barItems .3s ease-out; }
-  .bar.compact.open .seg, .bar.compact.open .sorter { display: flex; }
-  .bar.compact.open .chips { display: grid; }
 }
 @keyframes barIn { from { transform: translateY(-100%); } }
 @keyframes barItems { from { opacity: 0; transform: translateY(-6px); } }
@@ -168,7 +170,10 @@ h3::after { content: ""; flex: 1; border-top: 1px solid var(--line); order: 1; }
 .card[open] { border-radius: 10px; }
 /* 詳細資料彈窗：混沌石價、神聖石價左右並排，一個畫面看完；點任意處或 Esc 關閉 */
 .pop { border: 1px solid var(--accent); border-radius: 12px; background: var(--panel); color: var(--muted); padding: 12px 16px 10px; width: min(620px, calc(100vw - 16px)); max-height: calc(100dvh - 16px); overflow: auto; font-size: 13px; line-height: 1.6; font-variant-numeric: tabular-nums; cursor: pointer; box-shadow: 0 16px 40px rgb(0 0 0 / .5); }
-.pop::backdrop { background: rgb(0 0 0 / .55); }
+.pop::backdrop { background: rgb(0 0 0 / .55); animation: popFade .25s ease-out; }
+.pop[open] { animation: popIn .25s ease-out; }
+@keyframes popIn { from { opacity: 0; transform: translateY(-14px) scale(.98); } }
+@keyframes popFade { from { opacity: 0; } }
 .pop .ph { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .pop .ph img { width: 40px; height: 40px; object-fit: contain; flex: none; }
 .pop .pn { color: var(--text); font-size: 16px; font-weight: 600; }
@@ -383,8 +388,8 @@ function compactCheck() {
   // 疊加模式一律精簡：那個視窗只有 400 多 px 寬，整排分類按鈕會把價格擠到視窗外，
   // 而用 Ctrl+C 查價根本不需要分類。要用的時候按篩選鈕展開。
   const bar = $('bar')
-  if (!bar.classList.contains('float')) barH = bar.offsetHeight
-  const float = !OVERLAY && mobile.matches && $('barTop').getBoundingClientRect().top + barH < 0 // 完整篩選列已整個捲出畫面
+  if (!bar.classList.contains('float')) barH = bar.getBoundingClientRect().height
+  const float = !OVERLAY && $('barTop').getBoundingClientRect().top + barH < 0 // 完整篩選列已整個捲出畫面
   const compact = OVERLAY || float
   if (compact === bar.classList.contains('compact')) return
   $('barGap').style.height = float ? barH + 'px' : '' // 篩選列浮起來後留下同樣高度，清單不會跳
