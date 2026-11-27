@@ -81,7 +81,8 @@
   const median = a => { a = [...a].sort((x, y) => x - y); const n = a.length; return n % 2 ? a[n >> 1] : (a[n / 2 - 1] + a[n / 2]) / 2 }
   // 單價（混沌石）：成交量較大那個市場的「掛單賣」參考價
   // 降級保護：成交太少的價格不可靠（稀有命運卡常常一天只成交一兩張、剛好缺貨時只剩便宜成交），
-  //   24 小時成交不到 MIN_VOL 個就不降級；降級時改用「近期價格」和「7 天中位數」較高的那個，短暫跌價不會被降級
+  //   24 小時成交不到 minVol 個（玩家可選，預設 MIN_VOL）就不降級；降級時改用「近期價格」和「7 天中位數」較高的那個，短暫跌價不會被降級
+  //   minVol = 0：關閉保護（兩道都不擋）
   const MIN_VOL = 10
   const vol24 = it => (it.chaos?.vol24 ?? 0) + (it.divine?.vol24 ?? 0)
   const safeValue = (it, v, dp) => {
@@ -96,7 +97,7 @@
     // 每次上傳都是新的開始：上傳的檔案（就算是之前產生過的）原樣當作判斷基準
     const body = bom ? original.slice(1) : original
     const keep = new Set(opt.keep ?? []) // 玩家勾選「不更改」的物品（英文名）
-    const ratio = opt.ratio ?? RATIO, allow = new Set(opt.tiers ?? DEFAULT_TIERS)
+    const ratio = opt.ratio ?? RATIO, allow = new Set(opt.tiers ?? DEFAULT_TIERS), minVol = opt.minVol ?? MIN_VOL
     const vis = opt.vis ?? {} // 玩家自訂顯示／隱藏：英文名 → true 顯示、false 隱藏（優先於一切）
     const blocks = parse(body)
     if (blocks.filter(b => b.conds.length).length < 20) throw new Error('這個檔案看起來不是過濾器（讀不到規則）')
@@ -132,7 +133,7 @@
       if (x.it.en in vis) return null // 玩家自己決定顯示／隱藏的，不再依價格調整
       if (!allow.has(tierOf(x.v, D.divinePrice))) return null // 玩家沒勾的價位不調整
       const r = x.v / g.med
-      if (r < 1 && r <= 1 / ratio && (vol24(x.it) < MIN_VOL || safeValue(x.it, x.v, D.divinePrice) / g.med > 1 / ratio)) { x.guard = true; return null } // 降級保護
+      if (minVol && r < 1 && r <= 1 / ratio && (vol24(x.it) < minVol || safeValue(x.it, x.v, D.divinePrice) / g.med > 1 / ratio)) { x.guard = true; return null } // 降級保護
       if (r < ratio && r > 1 / ratio) return null
       const up = r > 1, now = loud(x.show, x.style)
       let best = null, bestStyle = null

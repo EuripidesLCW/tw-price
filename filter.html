@@ -148,6 +148,7 @@ tr.off .to > :not(.keepnote) { opacity: .35; filter: grayscale(1); }
   </div>
   <div class="set">
     <div class="row"><span class="k">價差達到</span><span id="ratios"></span><span class="hint">和作者同樣式物品的台服價差幾倍才調整，越小改越多</span></div>
+    <div class="row"><span class="k">降級保護</span><span id="vols"></span><span class="hint">24 小時成交少於這個數量的不降級，近期剛跌價的也不降級（防稀有卡缺貨誤判）</span></div>
     <div class="row"><span class="k">調整的價位</span><span id="tiers"></span></div>
     <div class="hint" id="tierHint">上傳檔案後，每個價位會顯示可調整幾項</div>
   </div>
@@ -204,7 +205,9 @@ const sect = (cls, t, d, list) => list.length ? `<h2><span class="${cls}">${t}</
   <div class="tw"><table><thead><tr><th>物品</th><th>台服價格</th><th>原本的樣子</th><th></th><th>調整後</th></tr></thead><tbody>${list.sort((a, b) => b.value - a.value).map(row).join('')}</tbody></table></div>` : ''
 
 // 調整條件：只在這個頁面有效，不記住
-let ratio = 5, tiers = new Set(twFilter.DEFAULT_TIERS)
+let ratio = 5, minVol = 10, tiers = new Set(twFilter.DEFAULT_TIERS)
+$('vols').innerHTML = [[0, '關閉'], [5, '5 個'], [10, '10 個'], [20, '20 個'], [50, '50 個']].map(([n, l]) => `<label class="chip"><input type="radio" name="minvol" value="${n}"${n === minVol ? ' checked' : ''}>${l}</label>`).join(' ')
+$('vols').onchange = e => { minVol = +e.target.value; run(false) }
 $('ratios').innerHTML = [2, 3, 5, 10].map(n => `<label class="chip"><input type="radio" name="ratio" value="${n}"${n === ratio ? ' checked' : ''}>${n} 倍</label>`).join(' ')
 const drawTiers = (cnt = {}) => { $('tiers').innerHTML = twFilter.tiers(D.divinePrice).map(t => `<label class="chip"><input type="checkbox" data-tier="${t.key}"${tiers.has(t.key) ? ' checked' : ''}>${t.label}<small>${cnt[t.key] ?? ''}</small></label>`).join(' ') }
 drawTiers()
@@ -221,9 +224,9 @@ function run(scroll = true) {
   $('err').hidden = true
   let r
   try {
-    r = twFilter(D, current.text, current.name, { keep, ratio, tiers: [...tiers], vis })
+    r = twFilter(D, current.text, current.name, { keep, ratio, minVol, tiers: [...tiers], vis })
     // 每個價位可調整幾項：全部價位都開來算（只用來顯示在價位按鈕上）
-    const all = twFilter(D, current.text, current.name, { ratio, tiers: twFilter.tiers(1).map(t => t.key) }), cnt = {}
+    const all = twFilter(D, current.text, current.name, { ratio, minVol, tiers: twFilter.tiers(1).map(t => t.key) }), cnt = {}
     for (const c of all.changes) cnt[c.tier] = (cnt[c.tier] ?? 0) + 1
     for (const t of twFilter.tiers(1)) cnt[t.key] = (cnt[t.key] ?? 0) + ' 項'
     drawTiers(cnt); $('tierHint').textContent = '數字＝這個價位可調整幾項（勾起來才會調整）'
@@ -235,7 +238,7 @@ function run(scroll = true) {
     <div class="sum"><div><b>${r.stats.items}</b><small>判斷的物品</small></div><div><b>${r.stats.items - r.applied}</b><small>照原樣${kept ? `（含不更改 ${kept}）` : ''}</small></div>
       <div><b style="color:var(--up)">${up.filter(on).length}</b><small>升級</small></div><div><b style="color:var(--dn)">${dn.filter(on).length}</b><small>降級</small></div></div>
     ${r.applied || r.forced ? `<div class="dl"><button type="button" id="save">⬇ 下載調整後的過濾器</button><span>${r.name === current.name ? (PICK && current.handle ? '存檔視窗會開在原檔的資料夾，直接存會取代原檔（要留原檔請先備份）' : '檔名和上傳的相同，放回資料夾會取代原檔（要留原檔請先備份）') : `訂閱的過濾器：存成 <code>${esc(r.name)}</code>，放到 Path of Exile 資料夾（不是 OnlineFilters）`}<br>遊戲裡：選項 › 遊戲 › 物品過濾器</span></div>
-    <ul class="note"><li>和同樣式物品的台服價差 ${ratio} 倍以上才調整，只調勾選的價位</li><li>升級更醒目；降級較不起眼，但不會隱藏</li><li>成交太少（24 小時不到 10 個）或近期剛跌價的不降級，避免稀有卡缺貨被誤判${r.guarded.length ? `（這次保護 ${r.guarded.length} 項）` : ""}</li><li>不調整：混沌石、神聖石、幻色石、崇高石、點金石、改造石、豐裕牌組</li><li>不想改的，取消那一列的「套用」（只限這次下載）</li></ul>`
+    <ul class="note"><li>和同樣式物品的台服價差 ${ratio} 倍以上才調整，只調勾選的價位</li><li>升級更醒目；降級較不起眼，但不會隱藏</li>${minVol ? `<li>成交太少（24 小時不到 ${minVol} 個）或近期剛跌價的不降級，避免稀有卡缺貨被誤判${r.guarded.length ? `（這次保護 ${r.guarded.length} 項）` : ""}</li>` : "<li>降級保護已關閉：成交少的物品也會依價格降級</li>"}<li>不調整：混沌石、神聖石、幻色石、崇高石、點金石、改造石、豐裕牌組</li><li>不想改的，取消那一列的「套用」（只限這次下載）</li></ul>`
     : r.changes.length ? '<div class="msg">全部選了不更改，不需要下載。</div>' : '<div class="msg">分級和台服行情相符，不需要調整。</div>'}
     <div class="tabs" role="tablist"><button type="button" role="tab" data-tab="price" aria-selected="${tab === 'price'}">價格調整${r.applied ? `<small>${r.applied}</small>` : ''}</button><button type="button" role="tab" data-tab="vis" aria-selected="${tab === 'vis'}">顯示／隱藏${r.forced ? `<small>自訂 ${r.forced}</small>` : ''}</button></div>
     <div id="tabPrice"${tab === 'price' ? '' : ' hidden'}>${up.length + dn.length ? '' : '<p class="vhint" style="margin-top:14px">沒有要依價格調整的物品。</p>'}
