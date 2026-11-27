@@ -13,6 +13,7 @@
   const tierOf = (v, dp) => tiers(dp).find(t => v < t.hi).key
   const DEFAULT_TIERS = ['c1', 'c10', 'c100', 'd1', 'd10', 'd100']
   const FIXED = new Set(['Chaos Orb', 'Divine Orb', 'Chromatic Orb', 'Exalted Orb', 'Orb of Alchemy', 'Orb of Alteration', 'Stacked Deck']) // 基本交易通貨：作者怎麼顯示就怎麼顯示，一律不調整
+  const SAME_CAT_ONLY = true // 只借同分類的樣式
   const MIN_GROUP = 3   // 一種樣式至少要有幾個物品，才拿來推算價位、借給別的物品用（少於這個數，多半是作者給特定物品的專屬樣式，不動）
   const STYLE = new Set(['SetTextColor', 'SetBackgroundColor', 'SetBorderColor', 'SetFontSize', 'PlayAlertSound', 'PlayAlertSoundPositional', 'CustomAlertSound', 'CustomAlertSoundOptional',
     'DisableDropSound', 'EnableDropSound', 'DisableDropSoundIfAlertSound', 'EnableDropSoundIfAlertSound', 'MinimapIcon', 'PlayEffect'])
@@ -149,8 +150,11 @@
       if (minVol && r < 1 && r <= 1 / ratio && (vol24(x.it) < minVol || safeValue(x.it, x.v, D.divinePrice) / g.med > 1 / ratio)) { x.guard = true; return null } // 降級保護
       if (r < ratio && r > 1 / ratio) return null
       const up = r > 1, now = loud(x.show, x.style)
+      // 反覆調整時，最後的樣子也要相對「作者原本」是升級更醒目、降級更不起眼
+      const upAll = x.v > x.origMed, base = loud(x.orig.show, x.orig.style)
       let best = null, bestStyle = null
-      for (const t of usable) {
+      // 先只在同一個分類（通貨、油瓶、紋身…）裡找；作者常用顏色、小地圖形狀區分分類，跨分類借會讓油瓶長得像通貨
+      for (const t of SAME_CAT_ONLY ? usable.filter(t => t.sample.it.cat === x.it.cat) : usable) {
         // 只在同類物品裡借；不借「隱藏」的樣式（降級最多變不起眼，不會把作者原本有顯示的東西藏起來）
         if (t === g || !t.sample.show || t.sample.it.cls !== x.it.cls) continue
         // 必須比現在更接近它的台服價格
@@ -159,6 +163,7 @@
         const st = borrow(t, { style: x.orig.style, it: x.it }, x.v > x.origMed) // 音效照「原本的音效」與「相對原組是升還是降」決定（反覆調整時不會在途中弄丟原本的音效）
         // 升級一定要比原本醒目、降級一定要比原本不起眼，否則不算數
         if (up ? loud(true, st) <= now : loud(true, st) >= now) continue
+        if (upAll ? loud(true, st) <= base : loud(true, st) >= base) continue
         best = t; bestStyle = st
       }
       return best && { to: best, style: bestStyle }
