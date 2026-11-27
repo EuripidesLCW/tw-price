@@ -89,19 +89,18 @@ h1 small { font-size: 15px; color: var(--muted); font-weight: 400; margin-left: 
 .chip img { width: 24px; height: 24px; object-fit: contain; }
 .chip:hover { border-color: var(--accent); background: var(--accent-soft); }
 .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #1a1408; font-weight: 700; }
-/* 篩選列（電腦、手機都一樣）：完整篩選列跟著頁面捲走，整個捲出畫面後，才從上方滑下精簡列（搜尋框＋篩選按鈕），
-   浮在清單上不佔位置；點篩選按鈕往下展開、蓋在清單上，不會推擠清單 */
+/* 篩選列的摺疊——小程式、電腦、手機共用同一套，改動時一起改：
+   - 精簡列＝搜尋框＋篩選按鈕；小程式一律精簡，電腦／手機在完整篩選列整個捲出畫面後，從上方滑下
+   - 點篩選按鈕：下方面板平順展開／收起，蓋在清單上，不會推擠清單 */
+.fpanel { display: contents; }
 .bar.compact { flex-wrap: nowrap; padding: 8px 0; box-shadow: 0 6px 12px rgb(0 0 0 / .25); }
 .bar.compact .search { flex: 1 1 0; }
 .bar.compact .ftoggle { display: flex; align-items: center; gap: 4px; flex: none; max-width: 46%; padding: 0 10px; border: 1px solid var(--accent); border-radius: 8px; background: var(--accent-soft); color: var(--accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bar.compact .seg, .bar.compact .chips, .bar.compact .sorter { display: none; }
-.bar.compact.open { flex-wrap: wrap; max-height: 85vh; overflow-y: auto; }
+.bar.compact .fpanel { display: flex; flex-wrap: wrap; gap: 8px; position: absolute; left: 0; right: 0; top: 100%; padding-inline: inherit; background: var(--bg); box-shadow: 0 10px 16px rgb(0 0 0 / .3); max-height: 0; overflow: hidden; visibility: hidden; transition: max-height .3s ease-out, visibility 0s .3s; }
+.bar.compact.open .fpanel { padding-block: 2px 10px; border-bottom: 1px solid var(--line); max-height: 85vh; overflow-y: auto; visibility: visible; transition: max-height .3s ease-out; }
+.bar.compact.open .fpanel > * { animation: barItems .3s ease-out; }
 html:not(.ov) .bar { position: relative; }
-html:not(.ov) .bar.float { position: fixed; left: 0; right: 0; top: 0; padding: 8px max(16px, calc((100% - 1208px) / 2)); max-height: 64px; overflow: hidden; animation: barIn .25s ease-out; transition: max-height .3s ease-out; }
-html:not(.ov) .bar.float.open { max-height: 85vh; overflow-y: auto; }
-.bar.float.open .seg, .bar.float.open .sorter, .bar.float.open .chips { animation: barItems .3s ease-out; }
-.bar.compact.open .seg, .bar.compact.open .sorter { display: flex; }
-.bar.compact.open .chips { display: grid; }
+html:not(.ov) .bar.float { position: fixed; left: 0; right: 0; top: 0; padding: 8px max(16px, calc((100% - 1208px) / 2)); animation: barIn .25s ease-out; }
 @media (max-width: 600px) {
   .bar input { font-size: 16px; }
   .sorter { width: 100%; justify-content: space-between; }
@@ -286,12 +285,14 @@ html.ov .tools { display: none; }
     </div>
     <!-- 手機往下滑後，篩選收成這顆按鈕；點開展開分類與顯示範圍 -->
     <button class="ftoggle" id="ftoggle" type="button" aria-expanded="false"></button>
+    <div class="fpanel" id="fpanel">
     <div class="seg" id="only" role="group" aria-label="顯示範圍"></div>
     <div class="sorter">
       <label>排序 <select id="sortSel" aria-label="排序方式"></select></label>
       <label class="grpchk"><input type="checkbox" id="grouped"> 依小分類分組</label>
     </div>
     <div class="chips" id="chips"></div>
+    </div>
   </div>
   <div id="barGap"></div>
   <main id="list"></main>
@@ -403,12 +404,12 @@ function setOpen(open) {
   const b = $('bar')
   b.classList.toggle('open', open); $('ftoggle').setAttribute('aria-expanded', String(open)); ftoggleText()
   // 浮動精簡列：展開到實際高度（動畫速度才一致），最多 85% 畫面
-  b.style.maxHeight = open && b.classList.contains('float') ? Math.min(b.scrollHeight, innerHeight * .85) + 'px' : ''
+  const p = $('fpanel'); p.style.maxHeight = open ? Math.min(p.scrollHeight, innerHeight * .85) + 'px' : ''
 }
 // 展開時點清單其他地方：只收起篩選，不會誤點到卡片
 document.addEventListener('click', e => {
   const b = $('bar')
-  if (!b.classList.contains('float') || !b.classList.contains('open') || b.contains(e.target)) return
+  if (!b.classList.contains('open') || b.contains(e.target)) return
   e.preventDefault(); e.stopPropagation(); setOpen(false)
 }, true)
 const ftoggleText = () => { $('ftoggle').textContent = `${cat}・${MODES[mode]}${SORT_SHORT[sortMode] ? '・' + SORT_SHORT[sortMode] : ''} ${$('bar').classList.contains('open') ? '▴' : '▾'}` }
