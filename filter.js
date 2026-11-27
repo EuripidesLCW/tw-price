@@ -80,6 +80,14 @@
   const soundOf = st => [...SOUND].map(k => st[k]).find(Boolean) ?? ''
   const median = a => { a = [...a].sort((x, y) => x - y); const n = a.length; return n % 2 ? a[n >> 1] : (a[n / 2 - 1] + a[n / 2]) / 2 }
   // 單價（混沌石）：成交量較大那個市場的「掛單賣」參考價
+  // 降級保護：成交太少的價格不可靠（稀有命運卡常常一天只成交一兩張、剛好缺貨時只剩便宜成交），
+  //   24 小時成交不到 MIN_VOL 個就不降級；降級時改用「近期價格」和「7 天中位數」較高的那個，短暫跌價不會被降級
+  const MIN_VOL = 10
+  const vol24 = it => (it.chaos?.vol24 ?? 0) + (it.divine?.vol24 ?? 0)
+  const safeValue = (it, v, dp) => {
+    const sp = [...(it.chaos?.spark ?? []).filter(x => x != null), ...(it.divine?.spark ?? []).filter(x => x != null).map(x => x * dp)]
+    return sp.length ? Math.max(v, median(sp)) : v
+  }
   const value = (it, dp) => { const c = it.chaos, d = it.divine; return c && (!d || c.vol24 >= d.vol24) ? c.sell : d ? d.sell * dp : 0 }
 
   function twFilter(D, original, fileName, opt = {}) {
@@ -117,12 +125,14 @@
     }
     // 4. 找出差很多的物品，替它找同類中價位最接近、而且確實更醒目／更不起眼的樣式
     function decide(x, groups, usable) {
+      x.guard = false
       const g = groups.get(x.key)
       if (g.items.length < MIN_GROUP) return null // 作者的專屬樣式，不動
       if (FIXED.has(x.it.en)) return null // 基本交易通貨不調整
       if (x.it.en in vis) return null // 玩家自己決定顯示／隱藏的，不再依價格調整
       if (!allow.has(tierOf(x.v, D.divinePrice))) return null // 玩家沒勾的價位不調整
       const r = x.v / g.med
+      if (r < 1 && r <= 1 / ratio && (vol24(x.it) < MIN_VOL || safeValue(x.it, x.v, D.divinePrice) / g.med > 1 / ratio)) { x.guard = true; return null } // 降級保護
       if (r < ratio && r > 1 / ratio) return null
       const up = r > 1, now = loud(x.show, x.style)
       let best = null, bestStyle = null
@@ -221,6 +231,7 @@
       visibility: all.map(x => ({ item: x.it, value: x.v, author: x.orig.show, show: x.show })),
       changes: changes.map(c => ({ item: c.x.it, value: c.x.v, tier: tierOf(c.x.v, D.divinePrice), up: c.up, kept: c.kept, from: { show: c.x.orig.show, style: c.x.orig.style, med: c.x.origMed },
         to: { show: true, style: c.style, med: c.to.med, sample: c.to.sample.it } })),
+      guarded: items.filter(x => x.guard).map(x => x.it.name),
       stats: { rules: blocks.length, items: items.length, groups: usable.length, unmatched: items.filter(x => !x.from).length },
     }
   }
