@@ -156,7 +156,7 @@
         // 必須比現在更接近它的台服價格
         const d = Math.abs(Math.log(x.v / t.med))
         if (d >= Math.abs(Math.log(r)) || (best && d >= Math.abs(Math.log(x.v / best.med)))) continue
-        const st = borrow(t, x, up)
+        const st = borrow(t, { style: x.orig.style, it: x.it }, x.v > x.origMed) // 音效照「原本的音效」與「相對原組是升還是降」決定（反覆調整時不會在途中弄丟原本的音效）
         // 升級一定要比原本醒目、降級一定要比原本不起眼，否則不算數
         if (up ? loud(true, st) <= now : loud(true, st) >= now) continue
         best = t; bestStyle = st
@@ -198,19 +198,30 @@
     // 自訂顯示的樣式：借作者同類物品的樣式，不帶音效；同類都沒有就用遊戲預設
     //   有價格：挑價位不比它貴、最接近的組（不會讓便宜貨拿到貴重物品的醒目樣式）；沒有這種組或沒價格：挑最不起眼的組
     const showStyle = x => {
-      const cand = [...finalGroups.values()].filter(g => g.items.length >= MIN_GROUP && g.sample.show && g.sample.it.cls === x.it.cls)
+      // 作者本來就有顯示（不管疊幾個）、或價格調整過的：外觀和音效照它自己的，只改疊數門檻
+      //   （例：重鑄石作者單個就顯示，玩家改成疊 2 個才顯示 → 樣子、音效都和原本一樣）
+      const n = Math.max(1, vis[x.it.en])
+      if (x.moved) return { style: x.style, own: true }
+      if (x.authorNeed) {
+        const r = simulate(blocks, { en: x.it.en, cls: x.it.cls, stack: Math.max(n, x.authorNeed), area })
+        if (r.show) return { style: r.style, own: true }
+      }
+      // 作者完全不顯示的：借同類物品的樣式；先找同一個分類（通貨、精髓…）的組，音效才不會唸成別的分類
+      const all = [...finalGroups.values()].filter(g => g.items.length >= MIN_GROUP && g.sample.show && g.sample.it.cls === x.it.cls)
+      const same = all.filter(g => g.items.every(i => i.it.cat === x.it.cat))
+      const cand = same.length ? same : all
       if (!cand.length) return { style: {}, sample: null }
-      const v = x.v * Math.max(1, vis[x.it.en]) // 疊到 N 個才顯示：以 N 個的總價挑樣式
+      const v = x.v * n // 疊到 N 個才顯示：以 N 個的總價挑樣式
       const cheaper = v > 0 ? cand.filter(g => g.med <= v) : []
       const t = cheaper.length ? cheaper.reduce((a, b) => b.med > a.med ? b : a)
         : cand.reduce((a, b) => loud(true, b.sample.style) < loud(true, a.sample.style) ? b : a)
-      return { style: borrow(t, { style: {} }, false), sample: t.sample.it }
+      return { style: borrow(t, { style: {}, it: x.it }, false), sample: t.sample.it }
     }
     const forcedOut = []
     const byShow = new Map()
     for (const x of forced.filter(x => vis[x.it.en])) { const st = showStyle(x), n = vis[x.it.en]; const k = n + '|' + JSON.stringify(st.style); (byShow.get(k) ?? byShow.set(k, { st, n, list: [] }).get(k)).list.push(x) }
     for (const { st, n, list } of byShow.values()) {
-      forcedOut.push(`Show # 台服價格調整 - 自訂顯示${n > 1 ? `（疊到 ${n} 個以上）` : ''}${st.sample ? `，樣式同「${st.sample.en}」` : ''}`, `    BaseType == ${list.map(x => `"${x.it.en}"`).sort().join(' ')}`, ...(n > 1 ? [`    StackSize >= ${n}`] : []), ...Object.values(st.style).map(l => '    ' + l), '')
+      forcedOut.push(`Show # 台服價格調整 - 自訂顯示${n > 1 ? `（疊到 ${n} 個以上）` : ''}${st.own ? '，照原作者的樣式' : st.sample ? `，樣式同「${st.sample.en}」` : ''}`, `    BaseType == ${list.map(x => `"${x.it.en}"`).sort().join(' ')}`, ...(n > 1 ? [`    StackSize >= ${n}`] : []), ...Object.values(st.style).map(l => '    ' + l), '')
     }
     // 自訂隱藏，以及「疊到 N 個才顯示」不到 N 個的部分
     const hide = forced.filter(x => vis[x.it.en] !== 1)
@@ -252,11 +263,12 @@
       stats: { rules: blocks.length, items: items.length, groups: usable.length, unmatched: items.filter(x => !x.from).length },
     }
   }
-  // 借來的樣式：外觀照那組；音效——整組同一個音效就借，否則升級保留物品自己原本的音效、降級不出聲
+  // 借來的樣式：外觀照那組；音效——整組同一個音效且同分類就借，否則升級保留物品自己原本的音效、降級不出聲
   function borrow(t, x, up) {
     const st = {}
     for (const [k, v] of Object.entries(t.sample.style)) if (!SOUND.has(k)) st[k] = v
-    const src = t.sound != null ? t.sample.style : up ? x.style : {}
+    const sameCat = t.items.every(i => i.it.cat === x.it?.cat)
+    const src = t.sound && sameCat ? t.sample.style : up ? x.style : {} // 整組都沒音效時不算「借音效」：升級仍保留自己的音效
     for (const k of SOUND) if (src[k]) st[k] = src[k]
     return st
   }
