@@ -160,7 +160,7 @@
         // 必須比現在更接近它的台服價格
         const d = Math.abs(Math.log(x.v / t.med))
         if (d >= Math.abs(Math.log(r)) || (best && d >= Math.abs(Math.log(x.v / best.med)))) continue
-        const st = borrow(t, { style: x.orig.style, it: x.it }, x.v > x.origMed) // 音效照「原本的音效」與「相對原組是升還是降」決定（反覆調整時不會在途中弄丟原本的音效）
+        const st = borrow(t, { style: x.orig.style, it: x.it }) // 音效照「原本的音效」決定（反覆調整時不會在途中弄丟原本的音效）
         // 升級一定要比原本醒目、降級一定要比原本不起眼，否則不算數
         if (up ? loud(true, st) <= now : loud(true, st) >= now) continue
         if (upAll ? loud(true, st) <= base : loud(true, st) >= base) continue
@@ -220,7 +220,7 @@
       const cheaper = v > 0 ? cand.filter(g => g.med <= v) : []
       const t = cheaper.length ? cheaper.reduce((a, b) => b.med > a.med ? b : a)
         : cand.reduce((a, b) => loud(true, b.sample.style) < loud(true, a.sample.style) ? b : a)
-      return { style: borrow(t, { style: {}, it: x.it }, false), sample: t.sample.it }
+      return { style: borrow(t, { style: {}, it: x.it }), sample: t.sample.it }
     }
     const forcedOut = []
     const byShow = new Map()
@@ -268,12 +268,12 @@
       stats: { rules: blocks.length, items: items.length, groups: usable.length, unmatched: items.filter(x => !x.from).length },
     }
   }
-  // 借來的樣式：外觀照那組；音效——整組同一個音效且同分類就借，否則升級保留物品自己原本的音效、降級不出聲
-  function borrow(t, x, up) {
+  // 借來的樣式：外觀照那組；音效——整組同一個音效且同分類就借，否則保留物品自己原本的音效（升降級都一樣；作者沒給音效的就不出聲）
+  function borrow(t, x) {
     const st = {}
     for (const [k, v] of Object.entries(t.sample.style)) if (!SOUND.has(k)) st[k] = v
     const sameCat = t.items.every(i => i.it.cat === x.it?.cat)
-    const src = t.sound && sameCat ? t.sample.style : up ? x.style : {} // 整組都沒音效時不算「借音效」：升級仍保留自己的音效
+    const src = t.sound && sameCat ? t.sample.style : x.style
     for (const k of SOUND) if (src[k]) st[k] = src[k]
     return st
   }
