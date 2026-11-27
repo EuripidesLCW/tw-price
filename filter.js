@@ -89,17 +89,19 @@
     const body = bom ? original.slice(1) : original
     const keep = new Set(opt.keep ?? []) // 玩家勾選「不更改」的物品（英文名）
     const ratio = opt.ratio ?? RATIO, allow = new Set(opt.tiers ?? DEFAULT_TIERS)
+    const vis = opt.vis ?? {} // 玩家自訂顯示／隱藏：英文名 → true 顯示、false 隱藏（優先於一切）
     const blocks = parse(body)
     if (blocks.filter(b => b.conds.length).length < 20) throw new Error('這個檔案看起來不是過濾器（讀不到規則）')
 
     // 2. 模擬每個物品（單個、指定的區域等級）
-    const items = []
+    const items = [], all = []
     for (const it of D.items) {
+      if (!it.en || !it.cls || it.en.includes('"')) continue
       const v = it.noTrade ? 0 : value(it, D.divinePrice)
-      if (!(v > 0) || !it.en || !it.cls || it.en.includes('"')) continue
-      if (it.cls === 'Divination Cards') continue // 命運卡不納入調整範圍，照原作者
       const r = simulate(blocks, { en: it.en, cls: it.cls, stack: 1, area })
-      items.push({ it, v, ...r, key: it.cls + '#' + lookKey(r) })
+      const x = { it, v, ...r, key: it.cls + '#' + lookKey(r) }
+      all.push(x)
+      if (v > 0) items.push(x)
     }
     // 3. 依「類別＋樣子」分組，算台服價格中間值
     function grouping() {
@@ -118,6 +120,7 @@
       const g = groups.get(x.key)
       if (g.items.length < MIN_GROUP) return null // 作者的專屬樣式，不動
       if (FIXED.has(x.it.en)) return null // 基本交易通貨不調整
+      if (x.it.en in vis) return null // 玩家自己決定顯示／隱藏的，不再依價格調整
       if (!allow.has(tierOf(x.v, D.divinePrice))) return null // 玩家沒勾的價位不調整
       const r = x.v / g.med
       if (r < ratio && r > 1 / ratio) return null
@@ -165,6 +168,27 @@
     const usable = [...finalGroups.values()].filter(g => g.items.length >= MIN_GROUP)
 
     // 輸出：樣式完全相同的物品合成一條規則，加在最上面
+    // 自訂顯示／隱藏：只處理和目前（含價格調整後）不同的物品
+    for (const x of all) x.orig ??= { show: x.show, style: x.style }
+    const forced = all.filter(x => x.it.en in vis && vis[x.it.en] !== x.show)
+    // 自訂顯示的樣式：借作者同類物品的樣式，不帶音效；同類都沒有就用遊戲預設
+    //   有價格：挑價位不比它貴、最接近的組（不會讓便宜貨拿到貴重物品的醒目樣式）；沒有這種組或沒價格：挑最不起眼的組
+    const showStyle = x => {
+      const cand = [...finalGroups.values()].filter(g => g.items.length >= MIN_GROUP && g.sample.show && g.sample.it.cls === x.it.cls)
+      if (!cand.length) return { style: {}, sample: null }
+      const cheaper = x.v > 0 ? cand.filter(g => g.med <= x.v) : []
+      const t = cheaper.length ? cheaper.reduce((a, b) => b.med > a.med ? b : a)
+        : cand.reduce((a, b) => loud(true, b.sample.style) < loud(true, a.sample.style) ? b : a)
+      return { style: borrow(t, { style: {} }, false), sample: t.sample.it }
+    }
+    const forcedOut = []
+    const byShow = new Map()
+    for (const x of forced.filter(x => vis[x.it.en])) { const st = showStyle(x); const k = JSON.stringify(st.style); (byShow.get(k) ?? byShow.set(k, { st, list: [] }).get(k)).list.push(x) }
+    for (const { st, list } of byShow.values()) {
+      forcedOut.push(`Show # 台服價格調整 - 自訂顯示${st.sample ? `，樣式同「${st.sample.en}」` : ''}`, `    BaseType == ${list.map(x => `"${x.it.en}"`).sort().join(' ')}`, ...Object.values(st.style).map(l => '    ' + l), '')
+    }
+    const hide = forced.filter(x => !vis[x.it.en])
+    if (hide.length) forcedOut.push('Hide # 台服價格調整 - 自訂隱藏', `    BaseType == ${hide.map(x => `"${x.it.en}"`).sort().join(' ')}`, '')
     const byTo = new Map()
     const applied = changes.filter(c => !c.kept)
     for (const c of applied) { const k = c.up + '|' + c.to.sample.it.en + '|' + JSON.stringify(c.style); (byTo.get(k) ?? byTo.set(k, []).get(k)).push(c) }
@@ -174,9 +198,11 @@
       '# ==================================================',
       `# 台服價格調整（${D.league}，依 ${hour} 為止的台服通貨交換成交價）`,
       `# 只調整台服價格和原作者分級差 ${ratio} 倍以上的 ${applied.length} 種物品，改用原作者自己同價位物品的樣式；`,
+      ...(forced.length ? [`# 另外依玩家自訂，顯示／隱藏 ${forced.length} 種物品（放在最前面，優先套用）。`] : []),
       '# 其他物品、以及以下原過濾器內容都沒有修改。價格會變，想更新請到網站重新產生。',
       '# ==================================================',
       '',
+      ...forcedOut,
     ]
     for (const cs of byTo.values()) {
       const t = cs[0].to
@@ -190,7 +216,9 @@
     const name = /\.filter$/i.test(fileName) ? fileName : fileName + '.filter' // 上傳什麼檔名，下載就是什麼檔名；訂閱的過濾器沒有副檔名，補上 .filter 遊戲才讀得到
     return {
       text: (bom ? '﻿' : '') + out.join(nl) + nl + body, name,
-      applied: applied.length,
+      applied: applied.length, forced: forced.length,
+      // 每個物品在下載的過濾器裡顯不顯示（自訂前）：author＝原作者、show＝含價格調整
+      visibility: all.map(x => ({ item: x.it, value: x.v, author: x.orig.show, show: x.show })),
       changes: changes.map(c => ({ item: c.x.it, value: c.x.v, tier: tierOf(c.x.v, D.divinePrice), up: c.up, kept: c.kept, from: { show: c.x.orig.show, style: c.x.orig.style, med: c.x.origMed },
         to: { show: true, style: c.style, med: c.to.med, sample: c.to.sample.it } })),
       stats: { rules: blocks.length, items: items.length, groups: usable.length, unmatched: items.filter(x => !x.from).length },
