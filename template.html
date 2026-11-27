@@ -200,7 +200,8 @@ html.ov body { padding: 0; }
 html.ov .wrap { padding: 8px 10px 10px; gap: 8px; }
 html.ov header { gap: 4px; margin-bottom: 2px; }
 html.ov header h1 { font-size: 17px; }
-html.ov .meta, html.ov .sorter { display: none; }
+html.ov .meta { display: none; }
+html.ov .bar.compact .fpanel { padding-right: 10px; } /* 小程式的篩選列左右沒有留白，捲軸會蓋住面板右邊 */
 /* 資料時間一定要留著：疊加視窗讀的是本機 data.js，萬一自動更新掛了，
    沒有這一行就會看著昨天的價格而完全不知道。平常只留時間那一截，
    超過 2 小時沒新資料時（.old）把警告整段放出來。 */
