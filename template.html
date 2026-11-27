@@ -170,6 +170,11 @@ h3::after { content: ""; flex: 1; border-top: 1px solid var(--line); order: 1; }
 .pop .ph { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .pop .ph img { width: 40px; height: 40px; object-fit: contain; flex: none; }
 .pop .pn { color: var(--text); font-size: 16px; font-weight: 600; }
+.pop .ph > div > div { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* 複製名稱：點了不會關閉彈窗 */
+.pop .cp { font: inherit; font-size: 12px; font-weight: 500; line-height: 1; color: var(--accent); background: var(--accent-soft); border: 1px solid transparent; border-radius: 6px; padding: 4px 8px; cursor: pointer; white-space: nowrap; }
+.pop .cp:hover { border-color: var(--accent); }
+.pop .cp.ok { color: var(--dn); background: color-mix(in srgb, var(--dn) 16%, transparent); }
 .pop .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 18px; }
 .pop .cols > div { margin: 0; min-width: 0; }
 .pop .pclose { margin-top: 8px; text-align: center; font-size: 11px; color: var(--stale); }
@@ -434,14 +439,27 @@ function popFor(doc) {
   if (!d.open || !d.matches('details.card')) return
   for (const o of doc.querySelectorAll('details.card[open]')) if (o !== d) o.open = false
   const [en, ...parts] = d.querySelector('.more').children
-  p.innerHTML = `<div class="ph">${d.querySelector('summary > img')?.outerHTML ?? ''}<div><div class="pn">${d.querySelector('.nm').innerHTML}</div><div>${en.innerHTML}</div></div></div>`
+  const it = D.items.find(i => i.id === d.dataset.id)
+  const cp = t => t ? `<button type="button" class="cp" data-copy="${esc(t)}">複製</button>` : ''
+  p.innerHTML = `<div class="ph">${d.querySelector('summary > img')?.outerHTML ?? ''}<div><div><span class="pn">${d.querySelector('.nm').innerHTML}</span>${cp(it?.name)}</div><div>${en.innerHTML}${cp(it?.en)}</div></div></div>`
     + `<div class="more cols">${parts.map(x => x.outerHTML).join('')}</div><div class="pclose">點任意處關閉</div>`
   if (!p.open) p.showModal()
   }, true)
-  p.onclick = () => p.close()
+  p.onclick = e => {
+    const b = e.target.closest('[data-copy]')
+    if (!b) return p.close()
+    copyText(doc, b.dataset.copy).then(() => { b.textContent = '已複製 ✓'; b.classList.add('ok'); setTimeout(() => { b.textContent = '複製'; b.classList.remove('ok') }, 1500) })
+  }
   p.onclose = () => { for (const o of doc.querySelectorAll('details.card[open]')) o.open = false }
 }
 popFor(document)
+// 複製文字到剪貼簿（doc＝哪個視窗，置頂小窗有自己的 document）；不支援時改用舊方法
+function copyText(doc, t) {
+  const nav = doc.defaultView.navigator
+  if (nav.clipboard?.writeText) return nav.clipboard.writeText(t).catch(() => legacy())
+  return Promise.resolve(legacy())
+  function legacy() { const a = doc.createElement('textarea'); a.value = t; a.style.cssText = 'position:fixed;opacity:0'; (doc.querySelector('dialog[open]') ?? doc.body).append(a); a.select(); doc.execCommand('copy'); a.remove() }
+}
 document.addEventListener('click', e => { if (!e.target.closest('details.card')) for (const d of document.querySelectorAll('details.card[open]')) d.open = false })
 
 const unit = { get chaos() { return ['混沌石', chaos] }, get divine() { return ['神聖石', divine] } }
