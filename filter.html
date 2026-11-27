@@ -122,6 +122,31 @@ tr.off .to > :not(.keepnote) { opacity: .35; filter: grayscale(1); }
 .vt .vs { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 10px; white-space: nowrap; color: var(--dn); background: color-mix(in srgb, var(--dn) 16%, transparent); }
 .vt.hid { opacity: .55; border-style: dashed; }
 .vt.hid .vs { color: var(--muted); background: var(--line); }
+.vt.part .vs { color: var(--accent); background: var(--accent-soft); }
+/* 顯示方式彈窗（動畫和主頁的詳細資料彈窗相同） */
+.ed { border: 1px solid var(--accent); border-radius: 12px; background: var(--panel); color: var(--text); padding: 0; width: min(420px, calc(100vw - 16px)); box-shadow: 0 16px 40px rgb(0 0 0 / .5); }
+.ed::backdrop { background: rgb(0 0 0 / .55); animation: popFade .25s ease-out; }
+.ed[open] { animation: popIn .25s ease-out; }
+@keyframes popIn { from { opacity: 0; transform: translateY(-14px) scale(.98); } }
+@keyframes popFade { from { opacity: 0; } }
+.ed .ein { padding: 14px 16px; }
+.ed .eh { display: flex; gap: 10px; align-items: center; }
+.ed .eh img { width: 40px; height: 40px; object-fit: contain; }
+.ed .eh b { font-size: 16px; }
+.ed .eh small { display: block; color: var(--muted); font-size: 12.5px; }
+.ed .eo { color: var(--muted); font-size: 13px; margin: 10px 0 8px; }
+.ed .eopt { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; width: 100%; text-align: left; font: inherit; font-size: 14px; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 9px; padding: 9px 12px; margin-top: 6px; cursor: pointer; }
+.ed .eopt:hover { border-color: var(--accent); }
+.ed .eopt[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); font-weight: 700; }
+.ed .eopt i { font-style: normal; color: var(--muted); font-size: 12px; font-weight: 400; margin-left: auto; }
+.ed .ns { display: flex; flex-wrap: wrap; gap: 5px; width: 100%; margin-top: 4px; }
+.ed .ns button, .ed .ns input { font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 7px; padding: 3px 9px; cursor: pointer; }
+.ed .ns input { width: 76px; cursor: text; }
+.ed .ns button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: #1a1408; font-weight: 700; }
+.ed .eact { display: flex; justify-content: space-between; gap: 8px; margin-top: 12px; }
+.ed .eact button { font: inherit; font-size: 14px; border: 1px solid var(--line); background: none; color: var(--muted); border-radius: 8px; padding: 6px 14px; cursor: pointer; }
+.ed .eact button.ok { border-color: var(--accent); background: var(--accent); color: #1a1408; font-weight: 700; }
+.ed .eact button:disabled { opacity: .4; cursor: default; }
 .vt.mod { opacity: 1; border-color: var(--accent); border-style: solid; box-shadow: inset 3px 0 0 var(--accent); }
 .vt.mod .vn small::after { content: " · 已自訂"; color: var(--accent); }
 .why { font-size: 12px; color: var(--muted); opacity: .85; margin-top: 4px; }
@@ -155,6 +180,7 @@ tr.off .to > :not(.keepnote) { opacity: .35; filter: grayscale(1); }
   <div class="msg err" id="err" hidden></div>
 
   <section class="res" id="res" hidden></section>
+  <dialog class="ed" id="ed"></dialog>
 </main>
 <button type="button" class="top" id="top" aria-label="回到頁面最上面">▲<br>頂端</button>
 <script src="data.js"></script>
@@ -216,7 +242,7 @@ $('tiers').onchange = e => { const k = e.target.dataset.tier; if (e.target.check
 let current = null // { text, name }
 // 這次上傳裡，玩家取消勾選「套用這項調整」的物品；每次上傳都是新的開始，換檔案就清空
 let keep = []
-// 自訂顯示／隱藏（英文名 → true 顯示、false 隱藏）；每次上傳清空
+// 自訂顯示（英文名 → 疊到幾個才顯示：1 全部顯示、0 全部隱藏、N 疊到 N 個以上）；每次上傳清空
 let vis = {}
 let tab = 'price', vMode = 'all', vCat = '所有', vQ = '', lastR = null
 function run(scroll = true) {
@@ -250,7 +276,7 @@ function run(scroll = true) {
           <div class="vseg" id="vmode">${[['all', '全部'], ['shown', '顯示中'], ['hidden', '隱藏中'], ['mod', '已自訂']].map(([k, l]) => `<button type="button" data-m="${k}" aria-pressed="${k === vMode}">${l}</button>`).join('')}</div></div>
         <div class="vcats" id="vcats"></div>
       </div>
-      <p class="vhint">點一下切換顯示／隱藏・整疊一起套用・換檔案會重新開始</p>
+      <p class="vhint">點物品設定：全部顯示、全部隱藏，或疊到幾個以上才顯示・換檔案會重新開始</p>
       <div id="vbox"></div>
     </div>`
   $('res').hidden = false
@@ -272,19 +298,20 @@ function run(scroll = true) {
   if (scroll) $('res').scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 // 目前狀態：自訂優先，否則照下載後的過濾器（含價格調整）
-const visNow = v => v.item.en in vis ? vis[v.item.en] : v.show
+const needNow = v => v.item.en in vis ? vis[v.item.en] : v.need
+const needText = n => n === 1 ? '全部顯示' : n === 0 ? '全部隱藏' : `疊到 ${n} 個以上才顯示`
 function drawVis() {
   if (!lastR || !$('vbox')) return
   const q = vQ.trim().toLowerCase()
   const list = lastR.visibility.filter(v => !q || v.item.name.toLowerCase().includes(q) || v.item.en.toLowerCase().includes(q))
-  const pass = v => vMode === 'all' || (vMode === 'shown' ? visNow(v) : vMode === 'hidden' ? !visNow(v) : v.item.en in vis)
+  const pass = v => vMode === 'all' || (vMode === 'shown' ? needNow(v) === 1 : vMode === 'hidden' ? needNow(v) !== 1 : v.item.en in vis)
   const cats = D.cats.filter(c => list.some(v => v.item.cat === c))
-  const hidN = c => list.filter(v => (c === '所有' || v.item.cat === c) && !visNow(v)).length
+  const hidN = c => list.filter(v => (c === '所有' || v.item.cat === c) && needNow(v) !== 1).length
   if (vCat !== '所有' && !cats.includes(vCat)) vCat = '所有'
   $('vcats').innerHTML = ['所有', ...cats].map(c => `<button type="button" data-c="${esc(c)}" aria-pressed="${c === vCat}">${esc(c)}<small>${hidN(c) ? '隱藏 ' + hidN(c) : ''}</small></button>`).join('')
   const tile = v => {
-    const on = visNow(v), mod = v.item.en in vis
-    return `<button type="button" class="vt${on ? '' : ' hid'}${mod ? ' mod' : ''}" data-v="${esc(v.item.en)}" title="${mod ? `原本：${v.show ? '顯示' : '隱藏'}・再點一下恢復` : '點一下切換'}"><img src="${esc(v.item.icon ?? '')}" alt="" loading="lazy"><span class="vn">${esc(v.item.name)}<small>${v.value ? fmt(v.value) : '24 小時無成交'}</small></span><span class="vs">${on ? '顯示' : '隱藏'}</span></button>`
+    const n = needNow(v), mod = v.item.en in vis
+    return `<button type="button" class="vt${n === 0 ? ' hid' : n > 1 ? ' part' : ''}${mod ? ' mod' : ''}" data-v="${esc(v.item.en)}" title="${mod ? `原本：${needText(v.need)}` : needText(n)}・點一下設定"><img src="${esc(v.item.icon ?? '')}" alt="" loading="lazy"><span class="vn">${esc(v.item.name)}<small>${v.value ? fmt(v.value) : '24 小時無成交'}</small></span><span class="vs">${n === 1 ? '顯示' : n === 0 ? '隱藏' : `疊 ${n}+ 顯示`}</span></button>`
   }
   const html = (vCat === '所有' ? cats : [vCat]).map(c => {
     const rows = list.filter(v => v.item.cat === c && pass(v))
@@ -298,11 +325,36 @@ $('res').addEventListener('click', e => {
   const m = e.target.closest('[data-m]'); if (m) { vMode = m.dataset.m; for (const b of $('vmode').children) b.setAttribute('aria-pressed', b === m); drawVis(); return }
   const c = e.target.closest('[data-c]'); if (c) { vCat = c.dataset.c; drawVis(); return }
   const v = e.target.closest('[data-v]')
-  if (v) {
-    const it = lastR.visibility.find(x => x.item.en === v.dataset.v), want = !visNow(it)
-    if (want === it.show) delete vis[it.item.en]; else vis[it.item.en] = want // 切回原本的狀態＝取消自訂
-    run(false)
-  }
+  if (v) { edEn = v.dataset.v; drawEd(); $('ed').showModal() }
+})
+// ── 顯示方式彈窗：全部顯示／全部隱藏／疊到 N 個以上才顯示，選了馬上套用 ──
+let edEn = null
+function setNeed(n) {
+  const it = lastR.visibility.find(x => x.item.en === edEn)
+  if (n === it.need) delete vis[edEn]; else vis[edEn] = n // 和原本一樣＝取消自訂
+  run(false); drawEd()
+}
+function drawEd() {
+  const v = lastR.visibility.find(x => x.item.en === edEn); if (!v) return
+  const n = needNow(v), M = v.max
+  const presets = [2, 3, 5, 10, 20, 40].filter(x => x <= M)
+  $('ed').innerHTML = `<div class="ein"><div class="eh"><img src="${esc(v.item.icon ?? '')}" alt=""><div><b>${esc(v.item.name)}</b><small>${v.value ? '單個 ' + fmt(v.value) : '24 小時無成交'}${M > 1 ? `・一疊最多 ${M.toLocaleString()} 個` : ''}</small></div></div>
+    <p class="eo">原作者：${needText(v.author)}${v.need !== v.author ? `（價格調整後：${needText(v.need)}）` : ''}</p>
+    <button type="button" class="eopt" data-n="1" aria-pressed="${n === 1}">全部顯示</button>
+    <button type="button" class="eopt" data-n="0" aria-pressed="${n === 0}">全部隱藏</button>
+    ${M > 1 ? `<div class="eopt" aria-pressed="${n > 1}">疊到幾個以上才顯示<i>不到的隱藏</i>
+      <div class="ns">${presets.map(x => `<button type="button" data-n="${x}" aria-pressed="${n === x}">${x}</button>`).join('')}<input type="number" id="edN" min="2" max="${M}" placeholder="自訂" value="${n > 1 && !presets.includes(n) ? n : ''}" inputmode="numeric"></div></div>` : ''}
+    <div class="eact"><button type="button" data-reset${edEn in vis ? '' : ' disabled'}>恢復原本</button><button type="button" class="ok" data-close>完成</button></div></div>`
+}
+$('ed').addEventListener('click', e => {
+  if (e.target === $('ed') || e.target.closest('[data-close]')) return $('ed').close() // 點外面或「完成」關閉
+  if (e.target.closest('[data-reset]')) { delete vis[edEn]; run(false); drawEd(); return }
+  const b = e.target.closest('button[data-n]'); if (b) setNeed(+b.dataset.n)
+})
+$('ed').addEventListener('change', e => {
+  if (e.target.id !== 'edN') return
+  const M = lastR.visibility.find(x => x.item.en === edEn).max, n = Math.round(+e.target.value)
+  if (n >= 2 && n <= M) setNeed(n); else e.target.value = ''
 })
 $('res').addEventListener('input', e => { if (e.target.id === 'vq') { vQ = e.target.value; drawVis() } })
 $('res').addEventListener('change', e => {

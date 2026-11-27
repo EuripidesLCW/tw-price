@@ -93,6 +93,8 @@ const FILTER_CLASS = { StackableCurrency: 'Stackable Currency', MapFragment: 'Ma
 const clsByEn = new Map(Object.values(base).filter(b => FILTER_CLASS[b.item_class]).map(b => [b.name, FILTER_CLASS[b.item_class]]))
 const CLS_BY_CAT = { 命運卡: 'Divination Cards', 精髓: 'Stackable Currency' }
 const clsOf = (en, cat) => clsByEn.get(en) ?? CLS_BY_CAT[cat]
+// 堆疊上限（過濾器頁面依堆疊數量判斷顯示／隱藏用）
+const maxByEn = new Map(Object.values(base).filter(b => b.properties?.stack_size > 1).map(b => [b.name, b.properties.stack_size]))
 const info = id => {
   const it = base[id]
   if (!it) return { name: id.split('/').pop(), cat: '其他', id }
@@ -100,7 +102,7 @@ const info = id => {
   const a = artUses.get(art) === 1 ? byArt.get(art) : null
   const z = zhByEn.get(it.name)
   const name = a?.name ?? z?.name ?? it.name
-  return { name, en: it.name, cls: FILTER_CLASS[it.item_class] ?? clsOf(it.name, exCat(id, it, catByText.get(name))), icon: a?.icon ?? z?.icon, cat: exCat(id, it, catByText.get(name)), id, ...placed.get(norm(name)) }
+  return { name, en: it.name, cls: FILTER_CLASS[it.item_class] ?? clsOf(it.name, exCat(id, it, catByText.get(name))), max: maxByEn.get(it.name), icon: a?.icon ?? z?.icon, cat: exCat(id, it, catByText.get(name)), id, ...placed.get(norm(name)) }
 }
 // 遊戲內的分頁 → 小分組 → 物品順序（layout.json，照遊戲截圖抄錄）優先；沒列到的物品才用下面的規則分頁
 const norm = t => t.replace(/汙/g, '污')
@@ -230,7 +232,7 @@ for (const d of digests) for (const m of d.markets) if (m.league === league) for
 for (const [n, p] of placed) if (!traded.has(n)) {
   const mid = idByZh.get(n)
   const listing = mid && { chaos: listed.get(mid + '|' + CHAOS), divine: listed.get(mid + '|' + DIVINE) }
-  items.push({ name: p.label, en: enByZh.get(n), cls: clsOf(enByZh.get(n), p.cat), icon: iconByZh.get(n), ...p, id: 'layout:' + n, noTrade: true, ...(listing?.chaos || listing?.divine ? { listing } : {}) })
+  items.push({ name: p.label, en: enByZh.get(n), cls: clsOf(enByZh.get(n), p.cat), max: maxByEn.get(enByZh.get(n)), icon: iconByZh.get(n), ...p, id: 'layout:' + n, noTrade: true, ...(listing?.chaos || listing?.divine ? { listing } : {}) })
 }
 
 // 4. 產生網頁

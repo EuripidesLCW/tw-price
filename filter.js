@@ -98,17 +98,29 @@
     const body = bom ? original.slice(1) : original
     const keep = new Set(opt.keep ?? []) // 玩家勾選「不更改」的物品（英文名）
     const ratio = opt.ratio ?? RATIO, allow = new Set(opt.tiers ?? DEFAULT_TIERS), minVol = opt.minVol ?? MIN_VOL
-    const vis = opt.vis ?? {} // 玩家自訂顯示／隱藏：英文名 → true 顯示、false 隱藏（優先於一切）
+    // 玩家自訂顯示：英文名 → 疊到幾個才顯示（1＝全部顯示、0＝全部隱藏、N＝疊到 N 個以上才顯示），優先於一切
+    const vis = opt.vis ?? {}
     const blocks = parse(body)
     if (blocks.filter(b => b.conds.length).length < 20) throw new Error('這個檔案看起來不是過濾器（讀不到規則）')
 
     // 2. 模擬每個物品（單個、指定的區域等級）
+    //   另外用過濾器裡出現過的堆疊數量門檻，找出「疊到幾個才顯示」（need：1＝單個就顯示、0＝疊滿也不顯示）
+    const stackTs = [...new Set(blocks.flatMap(b => b.conds.filter(c => c.key === 'StackSize').flatMap(c => c.vals.map(Number))))].filter(n => n > 0)
+    const needOf = (it, show1) => {
+      if (show1) return 1
+      const M = it.max || 1
+      const cand = [...new Set([M, ...stackTs.flatMap(t => [t, t + 1])])].filter(n => n > 1 && n <= M).sort((a, b) => a - b)
+      const shown = cand.map(n => simulate(blocks, { en: it.en, cls: it.cls, stack: n, area }).show)
+      let i = cand.length
+      while (i > 0 && shown[i - 1]) i--
+      return i === cand.length ? 0 : cand[i]
+    }
     const items = [], all = []
     for (const it of D.items) {
       if (!it.en || !it.cls || it.en.includes('"')) continue
       const v = it.noTrade ? 0 : value(it, D.divinePrice)
       const r = simulate(blocks, { en: it.en, cls: it.cls, stack: 1, area })
-      const x = { it, v, ...r, key: it.cls + '#' + lookKey(r) }
+      const x = { it, v, ...r, key: it.cls + '#' + lookKey(r), need: needOf(it, r.show) }
       all.push(x)
       if (v > 0) items.push(x)
     }
@@ -131,6 +143,7 @@
       if (g.items.length < MIN_GROUP) return null // 作者的專屬樣式，不動
       if (FIXED.has(x.it.en)) return null // 基本交易通貨不調整
       if (x.it.en in vis) return null // 玩家自己決定顯示／隱藏的，不再依價格調整
+      if (x.need > 1) return null // 作者依堆疊數量決定顯示（例：疊到 5 個才顯示），照作者
       if (!allow.has(tierOf(x.v, D.divinePrice))) return null // 玩家沒勾的價位不調整
       const r = x.v / g.med
       if (minVol && r < 1 && r <= 1 / ratio && (vol24(x.it) < minVol || safeValue(x.it, x.v, D.divinePrice) / g.med > 1 / ratio)) { x.guard = true; return null } // 降級保護
@@ -180,25 +193,27 @@
 
     // 輸出：樣式完全相同的物品合成一條規則，加在最上面
     // 自訂顯示／隱藏：只處理和目前（含價格調整後）不同的物品
-    for (const x of all) x.orig ??= { show: x.show, style: x.style }
-    const forced = all.filter(x => x.it.en in vis && vis[x.it.en] !== x.show)
+    for (const x of all) { x.orig ??= { show: x.show, style: x.style }; x.authorNeed = x.need; if (x.moved) x.need = 1 } // 價格調整的規則不分堆疊數量
+    const forced = all.filter(x => x.it.en in vis && vis[x.it.en] !== x.need)
     // 自訂顯示的樣式：借作者同類物品的樣式，不帶音效；同類都沒有就用遊戲預設
     //   有價格：挑價位不比它貴、最接近的組（不會讓便宜貨拿到貴重物品的醒目樣式）；沒有這種組或沒價格：挑最不起眼的組
     const showStyle = x => {
       const cand = [...finalGroups.values()].filter(g => g.items.length >= MIN_GROUP && g.sample.show && g.sample.it.cls === x.it.cls)
       if (!cand.length) return { style: {}, sample: null }
-      const cheaper = x.v > 0 ? cand.filter(g => g.med <= x.v) : []
+      const v = x.v * Math.max(1, vis[x.it.en]) // 疊到 N 個才顯示：以 N 個的總價挑樣式
+      const cheaper = v > 0 ? cand.filter(g => g.med <= v) : []
       const t = cheaper.length ? cheaper.reduce((a, b) => b.med > a.med ? b : a)
         : cand.reduce((a, b) => loud(true, b.sample.style) < loud(true, a.sample.style) ? b : a)
       return { style: borrow(t, { style: {} }, false), sample: t.sample.it }
     }
     const forcedOut = []
     const byShow = new Map()
-    for (const x of forced.filter(x => vis[x.it.en])) { const st = showStyle(x); const k = JSON.stringify(st.style); (byShow.get(k) ?? byShow.set(k, { st, list: [] }).get(k)).list.push(x) }
-    for (const { st, list } of byShow.values()) {
-      forcedOut.push(`Show # 台服價格調整 - 自訂顯示${st.sample ? `，樣式同「${st.sample.en}」` : ''}`, `    BaseType == ${list.map(x => `"${x.it.en}"`).sort().join(' ')}`, ...Object.values(st.style).map(l => '    ' + l), '')
+    for (const x of forced.filter(x => vis[x.it.en])) { const st = showStyle(x), n = vis[x.it.en]; const k = n + '|' + JSON.stringify(st.style); (byShow.get(k) ?? byShow.set(k, { st, n, list: [] }).get(k)).list.push(x) }
+    for (const { st, n, list } of byShow.values()) {
+      forcedOut.push(`Show # 台服價格調整 - 自訂顯示${n > 1 ? `（疊到 ${n} 個以上）` : ''}${st.sample ? `，樣式同「${st.sample.en}」` : ''}`, `    BaseType == ${list.map(x => `"${x.it.en}"`).sort().join(' ')}`, ...(n > 1 ? [`    StackSize >= ${n}`] : []), ...Object.values(st.style).map(l => '    ' + l), '')
     }
-    const hide = forced.filter(x => !vis[x.it.en])
+    // 自訂隱藏，以及「疊到 N 個才顯示」不到 N 個的部分
+    const hide = forced.filter(x => vis[x.it.en] !== 1)
     if (hide.length) forcedOut.push('Hide # 台服價格調整 - 自訂隱藏', `    BaseType == ${hide.map(x => `"${x.it.en}"`).sort().join(' ')}`, '')
     const byTo = new Map()
     const applied = changes.filter(c => !c.kept)
@@ -229,7 +244,8 @@
       text: (bom ? '﻿' : '') + out.join(nl) + nl + body, name,
       applied: applied.length, forced: forced.length,
       // 每個物品在下載的過濾器裡顯不顯示（自訂前）：author＝原作者、show＝含價格調整
-      visibility: all.map(x => ({ item: x.it, value: x.v, author: x.orig.show, show: x.show })),
+      // need：疊到幾個才顯示（1＝全部顯示、0＝全部隱藏）；author＝原作者、need＝含價格調整
+      visibility: all.map(x => ({ item: x.it, value: x.v, max: x.it.max || 1, author: x.authorNeed, need: x.need })),
       changes: changes.map(c => ({ item: c.x.it, value: c.x.v, tier: tierOf(c.x.v, D.divinePrice), up: c.up, kept: c.kept, from: { show: c.x.orig.show, style: c.x.orig.style, med: c.x.origMed },
         to: { show: true, style: c.style, med: c.to.med, sample: c.to.sample.it } })),
       guarded: items.filter(x => x.guard).map(x => x.it.name),
