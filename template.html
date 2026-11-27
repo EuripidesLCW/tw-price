@@ -98,9 +98,15 @@ h1 small { font-size: 15px; color: var(--muted); font-weight: 400; margin-left: 
   .sorter { width: 100%; justify-content: space-between; }
   .sorter select { font-size: 16px; }
   .bar.compact.open { flex-wrap: wrap; max-height: 85vh; overflow-y: auto; }
+  html:not(.ov) .bar { position: relative; }
+  html:not(.ov) .bar.float { position: fixed; left: 0; right: 0; top: 0; padding: 8px 16px; max-height: 64px; overflow: hidden; animation: barIn .25s ease-out; transition: max-height .3s ease-out; }
+  html:not(.ov) .bar.float.open { max-height: 85vh; overflow-y: auto; }
+  .bar.float.open .seg, .bar.float.open .sorter, .bar.float.open .chips { animation: barItems .3s ease-out; }
   .bar.compact.open .seg, .bar.compact.open .sorter { display: flex; }
   .bar.compact.open .chips { display: grid; }
 }
+@keyframes barIn { from { transform: translateY(-100%); } }
+@keyframes barItems { from { opacity: 0; transform: translateY(-6px); } }
 @media (max-width: 600px) { .chips { grid-template-columns: repeat(3, 1fr); } .chip { font-size: 13px; height: 34px; padding: 0 6px 0 2px; gap: 3px; } .chip .ic { width: 24px; } .chip img { width: 20px; height: 20px; } .chip img + img { display: none; } }
 section { margin-top: 22px; }
 h2 { font-size: 15px; margin: 0 0 8px; color: var(--accent); font-weight: 600; display: flex; gap: 8px; align-items: baseline; }
@@ -282,6 +288,7 @@ html.ov .tools { display: none; }
     </div>
     <div class="chips" id="chips"></div>
   </div>
+  <div id="barGap"></div>
   <main id="list"></main>
 </div>
 <div class="toast" id="toast"></div>
@@ -371,17 +378,34 @@ $('clear').onclick = () => { $('q').value = ''; $('clear').hidden = true; render
 
 // 手機：篩選列在頁首捲出畫面後變成精簡列（搜尋框＋篩選按鈕）固定在上方；點按鈕展開，選完自動收起並回到清單開頭
 const mobile = matchMedia('(max-width: 600px)')
+let barH = 0 // 手機完整篩選列的高度
 function compactCheck() {
   // 疊加模式一律精簡：那個視窗只有 400 多 px 寬，整排分類按鈕會把價格擠到視窗外，
   // 而用 Ctrl+C 查價根本不需要分類。要用的時候按篩選鈕展開。
-  const compact = OVERLAY || (mobile.matches && $('barTop').getBoundingClientRect().top < 0) // 篩選列原本的位置已捲出畫面
-  if (compact === $('bar').classList.contains('compact')) return
-  $('bar').classList.toggle('compact', compact)
+  const bar = $('bar')
+  if (!bar.classList.contains('float')) barH = bar.offsetHeight
+  const float = !OVERLAY && mobile.matches && $('barTop').getBoundingClientRect().top + barH < 0 // 完整篩選列已整個捲出畫面
+  const compact = OVERLAY || float
+  if (compact === bar.classList.contains('compact')) return
+  $('barGap').style.height = float ? barH + 'px' : '' // 篩選列浮起來後留下同樣高度，清單不會跳
+  bar.classList.toggle('compact', compact)
+  bar.classList.toggle('float', float)
   if (!compact) setOpen(false)
 }
 addEventListener('scroll', compactCheck, { passive: true })
 mobile.addEventListener('change', compactCheck)
-function setOpen(open) { $('bar').classList.toggle('open', open); $('ftoggle').setAttribute('aria-expanded', String(open)); ftoggleText() }
+function setOpen(open) {
+  const b = $('bar')
+  b.classList.toggle('open', open); $('ftoggle').setAttribute('aria-expanded', String(open)); ftoggleText()
+  // 浮動精簡列：展開到實際高度（動畫速度才一致），最多 85% 畫面
+  b.style.maxHeight = open && b.classList.contains('float') ? Math.min(b.scrollHeight, innerHeight * .85) + 'px' : ''
+}
+// 展開時點清單其他地方：只收起篩選，不會誤點到卡片
+document.addEventListener('click', e => {
+  const b = $('bar')
+  if (!b.classList.contains('float') || !b.classList.contains('open') || b.contains(e.target)) return
+  e.preventDefault(); e.stopPropagation(); setOpen(false)
+}, true)
 const ftoggleText = () => { $('ftoggle').textContent = `${cat}・${MODES[mode]}${SORT_SHORT[sortMode] ? '・' + SORT_SHORT[sortMode] : ''} ${$('bar').classList.contains('open') ? '▴' : '▾'}` }
 $('ftoggle').onclick = () => setOpen(!$('bar').classList.contains('open'))
 function picked() {
